@@ -43,6 +43,12 @@ jetRadius = np.array([1.0,1.0])
 # we add radius to both sides and include '1' for the center
 centroidArea = np.multiply.reduce(2*jetRadius/resolution + np.array([1,1]))
 
+def phieta2cell(coord):
+  return np.round((coord - domain[:,0])/resolution).astype(int)
+
+def cell2phieta(coord):
+  return resolution*coord + domain[:,0]
+
 def gridInitialize():
   global domain, resolution
   #determine size of grid
@@ -54,29 +60,36 @@ def gridInitialize():
 def gridAddJet(grid, jetPt, jetPhi, jetEta):
   global jetRadius
   # jetCoords in cell x cell format (not phi-eta)
-  jetCoords = np.round(np.array([jetPhi, jetEta])/resolution).astype(int)
+  jetCoords = phieta2cell(np.array([jetPhi,jetEta]))
   # amount of energy per cell inside the centroid
   jetdPt = jetPt/centroidArea
   # now to loop over all coordinates in the centroid
   #   first make a meshgrid of coordinates in the centroid
-  i,j = np.meshgrid(np.arange(jetCoords[0]-jetRadius[0], jetCoords[0]+jetRadius[0]+1), np.arange(jetCoords[1]-jetRadius[1], jetCoords[1]+jetRadius[1]+1))
+  i,j = np.meshgrid(np.arange(jetCoords[0]-jetRadius[0]/resolution[0], jetCoords[0]+jetRadius[0]/resolution[0]+1), np.arange(jetCoords[1]-jetRadius[1]/resolution[1], jetCoords[1]+jetRadius[1]/resolution[1]+1))
   # reshape to a flattened array so we get pairs like (0,0), (0,1), ...
-  centroidCoords = np.transpose([i.reshape(1,-1), j.reshape(1,-1)])
-  print 'adding jet'
-  print "\t", jetPt, jetPhi, jetEta
+  centroidCoords = map(lambda x: tuple(x), np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int))
+  print "\t"*1, 'adding jet:', jetPt, jetPhi, jetEta
   for coord in centroidCoords:
+    # handle periodicity in here!
     try:
       grid[coord] = jetdPt
     except IndexError:
-      print 'Jet centroid coordinates are out of range'
-      print "\t\t", coord
+      print "\t"*1, 'jet centroid coordinates are out of range'
+      print "\t"*2, coord
+  print "\t"*1, 'jet centroid added:', tuple(jetCoords)
 
 for event in events[[jetPt, jetPhi, jetEta]]:
   grid = gridInitialize()
   e_jetPt, e_jetPhi, e_jetEta = event
+  print 'adding event with %d jets' % min(e_jetPt.size, e_jetPhi.size, e_jetEta.size)
   for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt, e_jetPhi, e_jetEta):
     #only want jets with jetPt > 200 GeV (recorded in MeV)
     if j_jetPt/1000. < 200.:
+      print "\t"*1, 'jet is too small to trigger'
+      print "\t"*2, j_jetPt, j_jetPhi, j_jetEta
       continue
     gridAddJet(grid, j_jetPt, j_jetPhi, j_jetEta)
+  break
+
+
 
