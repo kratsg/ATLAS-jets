@@ -68,27 +68,34 @@ def gridAddJet(grid, jetPt, jetPhi, jetEta):
   i,j = np.meshgrid(np.arange(jetCoords[0]-jetRadius[0]/resolution[0], jetCoords[0]+jetRadius[0]/resolution[0]+1), np.arange(jetCoords[1]-jetRadius[1]/resolution[1], jetCoords[1]+jetRadius[1]/resolution[1]+1))
   # reshape to a flattened array so we get pairs like (0,0), (0,1), ...
   centroidCoords = map(lambda x: tuple(x), np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int))
-  print "\t"*1, 'adding jet:', jetPt, jetPhi, jetEta
+  print "\t"*1, 'adding jet:'
+  print "\t"*2, 'transverse momentum:', jetPt
+  print "\t"*2, 'phi:', jetPhi
+  print "\t"*2, 'eta:',  jetEta
+  print "\t"*2, 'centroid:', tuple(jetCoords)
   for coord in centroidCoords:
     # handle periodicity in here!
     try:
       grid[coord] = jetdPt
     except IndexError:
-      print "\t"*1, 'jet centroid coordinates are out of range'
-      print "\t"*2, coord
-  print "\t"*1, 'jet centroid added:', tuple(jetCoords)
+      print "\t"*2, '-- jet centroid coordinates are out of range:', coord
+  print "\t"*2, '-- jet centroid added'
 
 for event in events[[jetPt, jetPhi, jetEta]]:
   grid = gridInitialize()
   e_jetPt, e_jetPhi, e_jetEta = event
-  print 'adding event with %d jets' % min(e_jetPt.size, e_jetPhi.size, e_jetEta.size)
+  numJets = min(e_jetPt.size, e_jetPhi.size, e_jetEta.size)
+  numSmallJets = 0
+  print 'adding event with %d jets' % numJets
   for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt, e_jetPhi, e_jetEta):
     #only want jets with jetPt > 200 GeV (recorded in MeV)
     if j_jetPt/1000. < 200.:
       print "\t"*1, 'jet is too small to trigger'
       print "\t"*2, j_jetPt, j_jetPhi, j_jetEta
+      numSmallJets += 1
       continue
     gridAddJet(grid, j_jetPt, j_jetPhi, j_jetEta)
+  print '-- added event with %d jets, %d jets did not trigger, %d added to grid' % (numJets, numSmallJets, numJets - numSmallJets)
   break
 
 
