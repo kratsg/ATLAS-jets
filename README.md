@@ -9,7 +9,8 @@ Current Features
 - reports how many jets are in an event
 - reports how many jets for an event did not trigger (above threshold of 200 GeV)
 - reports how many jets for an event added to grid
+- reports how many points for a jet are added to grid
+- wraps points around in \phi but not in \eta
 
 ### To Do
 
-- add periodicity in \phi
