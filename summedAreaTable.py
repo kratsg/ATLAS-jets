@@ -2,6 +2,7 @@ import ROOT
 import root_numpy as rnp
 import numpy as np
 import pylab as pl
+import matplotlib
 
 #absolute filenames make sense, easier to find what file we talking about
 filename = '/Users/giordon/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
@@ -38,11 +39,9 @@ domain = np.array([[-3.2,3.2], [0.0, 3.2]])
 resolution = np.array([0.1, 0.1])
 #define jet radius in each direction [phi, eta]
 jetRadius = np.array([1.0,1.0])
-
 #calculate the centroidArea
 # we add radius to both sides and include '1' for the center
 centroidArea = np.multiply.reduce(2*jetRadius/resolution + np.array([1,1]))
-
 #define thresholds in GeV
 #  triggerable goes into our algorithm
 triggerableThresh = 25.
@@ -116,14 +115,40 @@ def gridAddJet(grid, jetPt, jetPhi, jetEta):
   #print "\t"*3, "%d/%d points added ~ %0.2f%%" % (numJetCoordsActual, numJetCoords, numJetCoordsActual*100.0/numJetCoords)
   return numJetCoordsActual*jetPt/numJetCoords
 
+def gridPlotEvent(grid, triggerableJets):
+  pl.figure()
+  print "\t"*1,"making plot for event"
+  #adding fake elements to fix legend
+  fake = matplotlib.patches.Rectangle((0,0), 1, 1, fill=False, edgecolor='none', visible=False)
+  for jetPt, jetPhi, jetEta in triggerableJets:
+    print "\t"*2, "(%0.2f, %0.2f) -- %0.3f" % (jetPhi,jetEta,jetPt/1000.)
+  #transpose is necessary! want x = eta, y = phi
+  pl.imshow(grid.T, cmap = pl.cm.spectral)
+  #x is phi
+  xticks_loc = pl.axes().xaxis.get_majorticklocs()
+  #y is eta
+  yticks_loc = pl.axes().yaxis.get_majorticklocs()
+  pl.xlabel('$\phi$')
+  pl.ylabel('$\eta$')
+  pl.title('Event - %d triggerable jets' % len(triggerableJets))
+  pl.legend([fake]*len(triggerableJets), ['(%0.2f, %0.2f)' % (jetPhi,jetEta) for jetPt, jetPhi, jetEta in triggerableJets], prop={'size':12}, loc="center", bbox_to_anchor=(0.5,-0.25), ncol=4, fancybox=True, shadow=True, title='Jets')
+  #transform labels from cellGrid coords to phi-eta coords
+  xticks_label = xticks_loc*resolution[0] + domain[0,0]
+  yticks_label = yticks_loc*resolution[1] + domain[1,0]
+  pl.xticks(xticks_loc, xticks_label)
+  pl.yticks(yticks_loc, yticks_label)
+  pl.show()
+
+
 trigThresh = np.array([])
 efficiency = np.array([])
 
-for triggerableThresh in range(0,510,10):
+for triggerableThresh in [200.]:#range(0,510,10):
   numTriggerableJets = 0
   numTriggeredJets = 0
   for event in events[[jetPt, jetPhi, jetEta]]:
     grid = gridInitialize()
+    triggerableJets = []
     e_jetPt, e_jetPhi, e_jetEta = event
     numJets = min(e_jetPt.size, e_jetPhi.size, e_jetEta.size)
     numLargeJets = 0
@@ -136,10 +161,12 @@ for triggerableThresh in range(0,510,10):
         continue
       numTriggerableJets += 1
       numLargeJets += 1
+      triggerableJets.append((j_jetPt, j_jetPhi, j_jetEta))
       gFEXpT = gridAddJet(grid, j_jetPt, j_jetPhi, j_jetEta)
       #print "\t"*2, 'triggered momentum: %0.4f GeV' % (gFEXpT/1000.)
       if gFEXpT > triggeredThresh: numTriggeredJets += 1
     #print '-- added event with %d jets, %d triggerable' % (numJets, numLargeJets)
+    gridPlotEvent(grid, triggerableJets)
   print triggerableThresh, numTriggeredJets*1.0/numTriggerableJets
   trigThresh = np.append(trigThresh, triggerableThresh)
   efficiency = np.append(efficiency, numTriggeredJets*1.0/numTriggerableJets)
@@ -148,4 +175,4 @@ pl.figure()
 pl.plot(trigThresh, efficiency)
 pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
 pl.ylabel('Efficiency')
-pl.savefig('out.png')
+pl.savefig('efficiency.png')
