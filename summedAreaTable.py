@@ -36,7 +36,7 @@ For each event, we want to generate an eti-phi grid of jets
 #want domain of grid, not of the total window view
 domain = np.array([[-3.2,3.2], [0.0, 3.2]])
 #resolution is basically gridSize for right now
-resolution = np.array([0.1, 0.1])
+resolution = np.array([0.2, 0.2])
 #define jet radius in each direction [phi, eta]
 jetRadius = np.array([1.0,1.0])
 #calculate the centroidArea
@@ -44,7 +44,7 @@ jetRadius = np.array([1.0,1.0])
 centroidArea = np.multiply.reduce(2*jetRadius/resolution + np.array([1,1]))
 #define thresholds in GeV
 #  triggerable goes into our algorithm
-triggerableThresh = 25.
+triggerableThresh = 150.
 #  triggered is what would be triggered by our algorithm
 triggeredThresh = 200.
 
@@ -78,7 +78,6 @@ def boundaryConditions(grid,coord):
 
 #quickly print details about a jet
 def printCentroidDetails(jetPt, jetPhi, jetEta, level=2):
-  return
   print "\t"*level, 'triggerable momentum: %0.4f GeV' % (jetPt/1000.)
   print "\t"*level, 'phi: %0.4f' % (jetPhi)
   print "\t"*level, 'eta: %0.4f' % (jetEta)
@@ -94,7 +93,7 @@ def gridAddJet(grid, jetPt, jetPhi, jetEta):
   # get tuples of the centroid's bounding box / circle
   centroidCoords = centroidMesh(jetCoords)
   #print "\t"*1, 'adding jet:'
-  printCentroidDetails(jetPt, jetPhi, jetEta)
+  #printCentroidDetails(jetPt, jetPhi, jetEta)
   # number of jet points
   numJetCoords = len(centroidCoords)
   # number of recorded points
@@ -140,39 +139,51 @@ def gridPlotEvent(grid, triggerableJets):
   pl.show()
 
 
-trigThresh = np.array([])
-efficiency = np.array([])
-
-for triggerableThresh in [200.]:#range(0,510,10):
-  numTriggerableJets = 0
-  numTriggeredJets = 0
+def computeEfficiency():
+  global events, triggerableThresh
+  triggerableJets = []
+  triggeredJets = []
   for event in events[[jetPt, jetPhi, jetEta]]:
     grid = gridInitialize()
-    triggerableJets = []
     e_jetPt, e_jetPhi, e_jetEta = event
-    numJets = min(e_jetPt.size, e_jetPhi.size, e_jetEta.size)
-    numLargeJets = 0
+    #we only want to compute efficiency for top two jets
+    topTwoJets = e_jetPt.argsort()[::-1][:2]
     #print 'adding event with %d jets' % numJets
-    for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt, e_jetPhi, e_jetEta):
+    for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt[topTwoJets], e_jetPhi, e_jetEta):
       #only want jets with jetPt > 200 GeV (recorded in MeV)
       if j_jetPt/1000. < triggerableThresh:
-        #print "\t"*1, 'jet is too small to be triggerable'
-        printCentroidDetails(j_jetPt, j_jetPhi, j_jetEta)
         continue
-      numTriggerableJets += 1
-      numLargeJets += 1
-      triggerableJets.append((j_jetPt, j_jetPhi, j_jetEta))
+      triggerableJets.append([j_jetPt, j_jetPhi, j_jetEta])
       gFEXpT = gridAddJet(grid, j_jetPt, j_jetPhi, j_jetEta)
-      #print "\t"*2, 'triggered momentum: %0.4f GeV' % (gFEXpT/1000.)
-      if gFEXpT > triggeredThresh: numTriggeredJets += 1
-    #print '-- added event with %d jets, %d triggerable' % (numJets, numLargeJets)
-    gridPlotEvent(grid, triggerableJets)
-  print triggerableThresh, numTriggeredJets*1.0/numTriggerableJets
-  trigThresh = np.append(trigThresh, triggerableThresh)
-  efficiency = np.append(efficiency, numTriggeredJets*1.0/numTriggerableJets)
+      if gFEXpT > triggeredThresh:
+        triggeredJets.append([j_jetPt, j_jetPhi, j_jetEta])
+  triggerableJets = np.array(triggerableJets)
+  triggeredJets = np.array(triggeredJets)
+  binRange = (triggerableJets[:,0].min(), triggerableJets[:,0].max())
+  numBins = 50
+  histTriggerable = np.histogram(triggerableJets[:,0], range=binRange, bins=numBins)
+  histTriggered = np.histogram(triggeredJets[:,0], range=binRange, bins=numBins)
+  nonZerobins = np.where(histTriggerable[0] != 0)
+  efficiency = np.true_divide(histTriggered[0][nonZerobins], histTriggerable[0][nonZerobins])
+  pl.figure()
+  pl.scatter(histTriggerable[1][nonZerobins]/1000., efficiency)
+  pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
+  pl.ylabel('Efficiency')
+  pl.title('%d bins, Triggerable = %d GeV, Triggered = %d GeV' % (numBins, triggerableThresh, triggeredThresh))
+  pl.savefig('efficiency_jets.png')
+  #now compute the efficiency inside the gFEX by applying boundary conditions to filter out centroid locations
+  gFEX_triggerableJets = np.array(filter(lambda x: boundaryConditions(grid,phieta2cell((x[1],x[2]))), triggerableJets))
+  gFEX_removedJets = np.array(filter(lambda x: not boundaryConditions(grid,phieta2cell((x[1],x[2]))), triggerableJets))
+  gFEX_triggeredJets = np.array([jet for jet in triggeredJets if jet not in gFEX_removedJets])
+  gFEX_histTriggerable = np.histogram(gFEX_triggerableJets[:,0], range=binRange, bins=numBins)
+  gFEX_histTriggered = np.histogram(gFEX_triggeredJets[:,0], range=binRange, bins=numBins)
+  gFEX_nonZerobins = np.where(gFEX_histTriggerable[0] != 0)
+  gFEX_efficiency = np.true_divide(gFEX_histTriggered[0][gFEX_nonZerobins], gFEX_histTriggerable[0][gFEX_nonZerobins])
+  pl.figure()
+  pl.scatter(gFEX_histTriggerable[1][gFEX_nonZerobins]/1000., gFEX_efficiency)
+  pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
+  pl.ylabel('Efficiency')
+  pl.title('%d bins, Triggerable = %d GeV, Triggered = %d GeV' % (numBins, triggerableThresh, triggeredThresh))
+  pl.savefig('efficiency_gFEX.png')
 
-pl.figure()
-pl.plot(trigThresh, efficiency)
-pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
-pl.ylabel('Efficiency')
-pl.savefig('efficiency.png')
+computeEfficiency()
