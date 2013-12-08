@@ -89,7 +89,7 @@ def gridAddJet(grid, jetPt, jetPhi, jetEta):
   # jetCoords in cell x cell format (not phi-eta)
   jetCoords = phieta2cell(np.array([jetPhi,jetEta]))
   # amount of energy per cell inside the centroid
-  jetdPt = jetPt/centroidArea
+  jetdPt = jetPt/(1000.*centroidArea)
   # get tuples of the centroid's bounding box / circle
   centroidCoords = centroidMesh(jetCoords)
   #print "\t"*1, 'adding jet:'
@@ -127,15 +127,20 @@ def gridPlotEvent(grid, triggerableJets):
   xticks_loc = pl.axes().xaxis.get_majorticklocs()
   #y is eta
   yticks_loc = pl.axes().yaxis.get_majorticklocs()
+  #top two jet energies
+  topTwoEnergies = triggerableJets[:,0].argsort()[::-1][:2]
+  topEnergy, nextTopEnergy = np.round(triggerableJets[:,0][topTwoEnergies]/1000.)
   pl.xlabel('$\phi$')
   pl.ylabel('$\eta$')
-  pl.title('Event - %d triggerable jets' % len(triggerableJets))
-  pl.legend([fake]*len(triggerableJets), ['(%0.2f, %0.2f)' % (jetPhi,jetEta) for jetPt, jetPhi, jetEta in triggerableJets], prop={'size':12}, loc="center", bbox_to_anchor=(0.5,-0.25), ncol=4, fancybox=True, shadow=True, title='Jets')
+  pl.title('Event - %d triggerable jets. Leading energies (GeV): %d, %d' % (len(triggerableJets), topEnergy, nextTopEnergy))
+  pl.legend([fake]*len(triggerableJets), ['(%0.2f, %0.2f)' % (jetPhi,jetEta) for jetPt, jetPhi, jetEta in triggerableJets], prop={'size':12}, loc="center", bbox_to_anchor=(0.5,-0.5), ncol=4, fancybox=True, shadow=True, title='Jets')
   #transform labels from cellGrid coords to phi-eta coords
   xticks_label = xticks_loc*resolution[0] + domain[0,0]
   yticks_label = yticks_loc*resolution[1] + domain[1,0]
   pl.xticks(xticks_loc, xticks_label)
   pl.yticks(yticks_loc, yticks_label)
+  cbar = pl.colorbar(shrink=0.75, pad=.2)
+  cbar.set_label('pT (GeV)')
   pl.show()
 
 
@@ -144,19 +149,24 @@ def computeEfficiency():
   triggerableJets = []
   triggeredJets = []
   for event in events[[jetPt, jetPhi, jetEta]]:
+    #triggerableJets = []
     grid = gridInitialize()
     e_jetPt, e_jetPhi, e_jetEta = event
+    numJets = e_jetPt.size
     #we only want to compute efficiency for top two jets
-    topTwoJets = e_jetPt.argsort()[::-1][:2]
+    #topTwoJets = e_jetPt.argsort()[::-1][:2]
     #print 'adding event with %d jets' % numJets
-    for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt[topTwoJets], e_jetPhi, e_jetEta):
+    for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt, e_jetPhi, e_jetEta):
+    #for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt[topTwoJets], e_jetPhi, e_jetEta):
       #only want jets with jetPt > 200 GeV (recorded in MeV)
       if j_jetPt/1000. < triggerableThresh:
         continue
       triggerableJets.append([j_jetPt, j_jetPhi, j_jetEta])
       gFEXpT = gridAddJet(grid, j_jetPt, j_jetPhi, j_jetEta)
-      if gFEXpT > triggeredThresh:
+      if gFEXpT/1000. > triggeredThresh:
         triggeredJets.append([j_jetPt, j_jetPhi, j_jetEta])
+    #if numJets > 3 or e_jetPt.max()/1000. >= 600.:
+    #  gridPlotEvent(grid, np.array(triggerableJets))
   triggerableJets = np.array(triggerableJets)
   triggeredJets = np.array(triggeredJets)
   binRange = (triggerableJets[:,0].min(), triggerableJets[:,0].max())
@@ -170,7 +180,7 @@ def computeEfficiency():
   pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Efficiency')
   pl.title('%d bins, Triggerable = %d GeV, Triggered = %d GeV' % (numBins, triggerableThresh, triggeredThresh))
-  pl.savefig('efficiency_jets.png')
+  pl.savefig('efficiency_jets_%d_%d.png' % (triggerableThresh, triggeredThresh))
   #now compute the efficiency inside the gFEX by applying boundary conditions to filter out centroid locations
   gFEX_triggerableJets = np.array(filter(lambda x: boundaryConditions(grid,phieta2cell((x[1],x[2]))), triggerableJets))
   gFEX_removedJets = np.array(filter(lambda x: not boundaryConditions(grid,phieta2cell((x[1],x[2]))), triggerableJets))
@@ -184,6 +194,6 @@ def computeEfficiency():
   pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Efficiency')
   pl.title('%d bins, Triggerable = %d GeV, Triggered = %d GeV' % (numBins, triggerableThresh, triggeredThresh))
-  pl.savefig('efficiency_gFEX.png')
+  pl.savefig('efficiency_gFEX_%d_%d.png' % (triggerableThresh, triggeredThresh))
 
 computeEfficiency()
