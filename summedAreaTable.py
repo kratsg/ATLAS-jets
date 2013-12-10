@@ -36,7 +36,7 @@ For each event, we want to generate an eti-phi grid of jets
 #want domain of grid, not of the total window view
 domain = np.array([[-3.2,3.2], [0.0, 3.2]])
 #resolution is basically gridSize for right now
-resolution = np.array([0.2, 0.2])
+resolution = np.array([0.02, 0.02])
 #define jet radius in each direction [phi, eta]
 jetRadius = np.array([1.0,1.0])
 #calculate the centroidArea
@@ -71,16 +71,17 @@ def gaussian2D(mu, sigma, amplitude, coord):
   return A*exponential
 
 #returns the fractional energy at the given coordinates for a jet
-def jetdPt(grid, coord, jetEnergy):
-  global centroidArea
-  return jetEnergy/centroidArea
+def jetdPt(jetCoord, jetEnergy, coord):
+  global jetRadius, resolution
+  return gaussian2D(jetCoord, jetRadius/resolution, jetEnergy, coord)
 
 #generate a meshgrid for a given jet centroid
+# jetCoord in cell coordinates
 def centroidMesh(grid, jetCoord, jetPt):
   global jetRadius, resolution
   i,j = np.meshgrid(np.arange(jetCoord[0]-jetRadius[0]/resolution[0], jetCoord[0]+jetRadius[0]/resolution[0]+1), np.arange(jetCoord[1]-jetRadius[1]/resolution[1], jetCoord[1]+jetRadius[1]/resolution[1]+1))
-  mesh = map(lambda x: [tuple(x), jetdPt(grid, x, jetPt)], np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int))
-  mesh = filter(lambda x: boundaryConditions(grid,x[0])&circularRegion(5, jetCoord, x[0]), mesh)
+  mesh = map(lambda x: [tuple(x), jetdPt(jetCoord, jetPt, x)], np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int))
+  mesh = filter(lambda x: boundaryConditions(grid,x[0])&circularRegion(jetRadius/resolution, jetCoord, x[0]), mesh)
   return mesh
 
 #define boolean function for allowed coordinates (wrap-around, etc)
@@ -95,7 +96,7 @@ def circularRegion(radius, jetCoord, coord):
   #coord = (phi, eta) in cell coordinates
   diff = jetCoord - coord
   distance = np.sqrt(diff[0]**2. + diff[1]**2.)
-  if distance <= radius:
+  if distance <= radius[0]:
     return True
   else:
     return False
