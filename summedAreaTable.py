@@ -3,6 +3,7 @@ import root_numpy as rnp
 import numpy as np
 import pylab as pl
 import matplotlib
+import scipy.special
 
 #absolute filenames make sense, easier to find what file we talking about
 filename = '/Users/giordon/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
@@ -36,7 +37,7 @@ For each event, we want to generate an eti-phi grid of jets
 #want domain of grid, not of the total window view
 domain = np.array([[-3.2,3.2], [0.0, 3.2]])
 #resolution is basically gridSize for right now
-resolution = np.array([0.02, 0.02])
+resolution = np.array([0.2, 0.2])
 #define jet radius in each direction [phi, eta]
 jetRadius = np.array([1.0,1.0])
 #calculate the centroidArea
@@ -66,7 +67,7 @@ def gridInitialize():
 def gaussian2D(mu, sigma, amplitude, coord):
   # normalize gaussian so that the integral is just the amplitude
   #    Note: normalization is 2 pi sx sy * amplitude
-  A = amplitude/(2*np.pi*sigma[0]*sigma[1])
+  A = amplitude/(2*np.pi*sigma[0]*sigma[1]*scipy.special.erf(2.**-0.5)**2.)
   exponential = np.exp(-( (mu[0] - coord[0])**2./(2.*(sigma[0]**2.)) + (mu[1] - coord[1])**2./(2.*(sigma[1]**2.))  ))
   return A*exponential
 
@@ -117,7 +118,6 @@ def gridAddJet(grid, jetPt, jetPhi, jetEta):
   # get tuples of the centroid's bounding box / circle
   # this is in the form of [(x,y), fractionalEnergy]
   centroidCoords = centroidMesh(grid, jetCoords, jetPt)
-
   # jet energy added to grid
   energyRecorded = 0.0
   # now to loop over all coordinates in the centroid that fit
@@ -134,6 +134,7 @@ def gridAddJet(grid, jetPt, jetPhi, jetEta):
       # -- the reason is that we filter out all inappropriate eta coordinates
       #        and then wrap around in the phi coordinates
       print "\t"*2, '-- jet coord could not be added:', coord
+  print jetPt, energyRecorded, cell2phieta(jetCoords)
   return energyRecorded
 
 def gridPlotEvent(grid, triggerableJets):
