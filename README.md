@@ -11,6 +11,15 @@ Current Features
 - reports how many points for a jet are added to grid
 - wraps points around in \phi but not in \eta
 - computes efficiency for leading jets and for gFEX module
+- gaussians and circular mesh grids are added
 
 ### To Do
-- gaussians and circular mesh grids
+- put it in a class/module format
+
+Dependencies
+=====================
+- ROOT 5.32, 5.34
+- NumPy 1.6, 1.7, 1.8
+- Python 2.6, 2.7
+- GNU/Linux, Mac OS
+- root\_numpy [root\_numpy](http://rootpy.github.io/root_numpy/install.html)
