@@ -1,9 +1,9 @@
 import ROOT
-import root_numpy as rnp
 import numpy as np
 import pylab as pl
 import matplotlib
-import scipy.special
+#import scipy.special
+import root_numpy as rnp
 
 #absolute filenames make sense, easier to find what file we talking about
 filename = '/Users/giordon/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
@@ -63,11 +63,29 @@ def gridInitialize():
   #note that phieta2cell(domain[:,0]) = (0,0) by definition
   return np.zeros(phieta2cell(domain[:,1])).astype(float)
 
+#work around since David doesn't have SciPy working
+def erf(x):
+  # save the sign of x
+  sign = 1 if x >= 0 else -1
+  x = np.fabs(x)
+  # constants
+  a1 =  0.254829592
+  a2 = -0.284496736
+  a3 =  1.421413741
+  a4 = -1.453152027
+  a5 =  1.061405429
+  p  =  0.3275911
+  # A&S formula 7.1.26
+  t = 1.0/(1.0 + p*x)
+  y = 1.0 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*np.exp(-x*x)
+  return sign*y # erf(-x) = -erf(x)
+
 # returns a 2D gaussian centered at mu evaluated at coord (must be in cell grid)
 def gaussian2D(mu, sigma, amplitude, coord):
   # normalize gaussian so that the integral is just the amplitude
   #    Note: normalization is 2 pi sx sy * amplitude
-  A = amplitude/(2*np.pi*sigma[0]*sigma[1]*scipy.special.erf(2.**-0.5)**2.)
+  A = amplitude/(2*np.pi*sigma[0]*sigma[1]*erf(2.**-0.5)**2.)
+  #A = amplitude/(2*np.pi*sigma[0]*sigma[1]*scipy.special.erf(2.**-0.5)**2.)
   exponential = np.exp(-( (mu[0] - coord[0])**2./(2.*(sigma[0]**2.)) + (mu[1] - coord[1])**2./(2.*(sigma[1]**2.))  ))
   return A*exponential
 
@@ -174,10 +192,10 @@ def computeEfficiency():
   global events, triggerableThresh
   triggerableJets = []
   triggeredJets = []
-  for event in events[[jetPt, jetPhi, jetEta]]:
+  for event in events:
     triggerableJets = []
     grid = gridInitialize()
-    e_jetPt, e_jetPhi, e_jetEta = event
+    e_jetE,e_jetPt,e_jetM,e_jetEta,e_jetPhi,_,_,_,_,_ = event
     e_jetPt /= 1000.
     numJets = e_jetPt.size
     #we only want to compute efficiency for top two jets
@@ -222,4 +240,4 @@ def computeEfficiency():
   pl.title('%d bins, Triggerable = %d GeV, Triggered = %d GeV' % (numBins, triggerableThresh, triggeredThresh))
   pl.savefig('efficiency_gFEX_%d_%d.png' % (triggerableThresh, triggeredThresh))
 
-computeEfficiency()
+#computeEfficiency()
