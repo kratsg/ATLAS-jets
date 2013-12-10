@@ -62,6 +62,14 @@ def gridInitialize():
   #note that phieta2cell(domain[:,0]) = (0,0) by definition
   return np.zeros(phieta2cell(domain[:,1])).astype(float)
 
+# returns a 2D gaussian centered at mu evaluated at coord (must be in cell grid)
+def gaussian2D(mu, sigma, amplitude, coord):
+  # normalize gaussian so that the integral is just the amplitude
+  #    Note: normalization is 2 pi sx sy * amplitude
+  A = amplitude/(2*np.pi*sigma[0]*sigma[1])
+  exponential = np.exp(-( (mu[0] - coord[0])**2./(2.*(sigma[0]**2.)) + (mu[1] - coord[1])**2./(2.*(sigma[1]**2.))  ))
+  return A*exponential
+
 #returns the fractional energy at the given coordinates for a jet
 def jetdPt(grid, coord, jetEnergy):
   global centroidArea
@@ -72,13 +80,22 @@ def centroidMesh(grid, jetCoord, jetPt):
   global jetRadius, resolution
   i,j = np.meshgrid(np.arange(jetCoord[0]-jetRadius[0]/resolution[0], jetCoord[0]+jetRadius[0]/resolution[0]+1), np.arange(jetCoord[1]-jetRadius[1]/resolution[1], jetCoord[1]+jetRadius[1]/resolution[1]+1))
   mesh = map(lambda x: [tuple(x), jetdPt(grid, x, jetPt)], np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int))
-  mesh = filter(lambda x: boundaryConditions(grid,x[0]), mesh)
+  mesh = filter(lambda x: boundaryConditions(grid,x[0])&circularRegion(5, jetCoord, x[0]), mesh)
   return mesh
 
 #define boolean function for allowed coordinates (wrap-around, etc)
 def boundaryConditions(grid, coord):
   #coord = (phi, eta) in cell coordinates
   if 0 <= coord[1] < grid.shape[1]:
+    return True
+  else:
+    return False
+
+def circularRegion(radius, jetCoord, coord):
+  #coord = (phi, eta) in cell coordinates
+  diff = jetCoord - coord
+  distance = np.sqrt(diff[0]**2. + diff[1]**2.)
+  if distance <= radius:
     return True
   else:
     return False
@@ -133,6 +150,9 @@ def gridPlotEvent(grid, triggerableJets):
   yticks_loc = pl.axes().yaxis.get_majorticklocs()
   #top two jet energies
   topTwoEnergies = triggerableJets[:,0].argsort()[::-1][:2]
+  if len(topTwoEnergies) == 1:
+    print 'only one top energy'
+    return
   topEnergy, nextTopEnergy = np.round(triggerableJets[:,0][topTwoEnergies])
   pl.xlabel('$\phi$')
   pl.ylabel('$\eta$')
@@ -153,7 +173,7 @@ def computeEfficiency():
   triggerableJets = []
   triggeredJets = []
   for event in events[[jetPt, jetPhi, jetEta]]:
-    #triggerableJets = []
+    triggerableJets = []
     grid = gridInitialize()
     e_jetPt, e_jetPhi, e_jetEta = event
     e_jetPt /= 1000.
@@ -170,8 +190,7 @@ def computeEfficiency():
       gFEXpT = gridAddJet(grid, j_jetPt, j_jetPhi, j_jetEta)
       if gFEXpT > triggeredThresh:
         triggeredJets.append([j_jetPt, j_jetPhi, j_jetEta])
-    #if numJets > 3 or e_jetPt.max()/1000. >= 600.:
-    #  gridPlotEvent(grid, np.array(triggerableJets))
+    gridPlotEvent(grid, np.array(triggerableJets))
   triggerableJets = np.array(triggerableJets)
   triggeredJets = np.array(triggeredJets)
   binRange = (triggerableJets[:,0].min(), triggerableJets[:,0].max())
