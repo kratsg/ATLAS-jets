@@ -62,14 +62,21 @@ def gridInitialize():
   #note that phieta2cell(domain[:,0]) = (0,0) by definition
   return np.zeros(phieta2cell(domain[:,1])).astype(float)
 
+#returns the fractional energy at the given coordinates for a jet
+def jetdPt(grid, coord, jetEnergy):
+  global centroidArea
+  return jetEnergy/centroidArea
+
 #generate a meshgrid for a given jet centroid
-def centroidMesh(jetCoord):
+def centroidMesh(grid, jetCoord, jetPt):
   global jetRadius, resolution
   i,j = np.meshgrid(np.arange(jetCoord[0]-jetRadius[0]/resolution[0], jetCoord[0]+jetRadius[0]/resolution[0]+1), np.arange(jetCoord[1]-jetRadius[1]/resolution[1], jetCoord[1]+jetRadius[1]/resolution[1]+1))
-  return map(lambda x: tuple(x), np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int))
+  mesh = map(lambda x: [tuple(x), jetdPt(grid, x, jetPt)], np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int))
+  mesh = filter(lambda x: boundaryConditions(grid,x[0]), mesh)
+  return mesh
 
 #define boolean function for allowed coordinates (wrap-around, etc)
-def boundaryConditions(grid,coord):
+def boundaryConditions(grid, coord):
   #coord = (phi, eta) in cell coordinates
   if 0 <= coord[1] < grid.shape[1]:
     return True
@@ -88,31 +95,28 @@ def gridAddJet(grid, jetPt, jetPhi, jetEta):
   global jetRadius, resolution
   # jetCoords in cell x cell format (not phi-eta)
   jetCoords = phieta2cell(np.array([jetPhi,jetEta]))
-  # amount of energy per cell inside the centroid
-  jetdPt = jetPt/(1000.*centroidArea)
+
   # get tuples of the centroid's bounding box / circle
-  centroidCoords = centroidMesh(jetCoords)
-  #print "\t"*1, 'adding jet:'
-  #printCentroidDetails(jetPt, jetPhi, jetEta)
-  # number of jet points
-  numJetCoords = len(centroidCoords)
-  # number of recorded points
-  numJetCoordsActual = 0
+  # this is in the form of [(x,y), fractionalEnergy]
+  centroidCoords = centroidMesh(grid, jetCoords, jetPt)
+
+  # jet energy added to grid
+  energyRecorded = 0.0
   # now to loop over all coordinates in the centroid that fit
-  for coord in filter(lambda x: boundaryConditions(grid,x), centroidCoords):
+  # coordinates are of the form [(x,y), fractional energy]
+  for coord, fractionalEnergy in centroidCoords:
     # handle periodicity in here! more specifically, if phi is too large, it doesn't wrap around
     try:
-      numJetCoordsActual += 1
       if coord[0] >= grid.shape[0]:
         coord = (coord[0] - grid.shape[0], coord[1])
-      grid[coord] += jetdPt
+      grid[coord] += fractionalEnergy
+      energyRecorded += fractionalEnergy
     except IndexError:
       # we should NEVER see this gorram error
       # -- the reason is that we filter out all inappropriate eta coordinates
       #        and then wrap around in the phi coordinates
       print "\t"*2, '-- jet coord could not be added:', coord
-  #print "\t"*3, "%d/%d points added ~ %0.2f%%" % (numJetCoordsActual, numJetCoords, numJetCoordsActual*100.0/numJetCoords)
-  return numJetCoordsActual*jetPt/numJetCoords
+  return energyRecorded
 
 def gridPlotEvent(grid, triggerableJets):
   pl.figure()
@@ -129,7 +133,7 @@ def gridPlotEvent(grid, triggerableJets):
   yticks_loc = pl.axes().yaxis.get_majorticklocs()
   #top two jet energies
   topTwoEnergies = triggerableJets[:,0].argsort()[::-1][:2]
-  topEnergy, nextTopEnergy = np.round(triggerableJets[:,0][topTwoEnergies]/1000.)
+  topEnergy, nextTopEnergy = np.round(triggerableJets[:,0][topTwoEnergies])
   pl.xlabel('$\phi$')
   pl.ylabel('$\eta$')
   pl.title('Event - %d triggerable jets. Leading energies (GeV): %d, %d' % (len(triggerableJets), topEnergy, nextTopEnergy))
@@ -152,6 +156,7 @@ def computeEfficiency():
     #triggerableJets = []
     grid = gridInitialize()
     e_jetPt, e_jetPhi, e_jetEta = event
+    e_jetPt /= 1000.
     numJets = e_jetPt.size
     #we only want to compute efficiency for top two jets
     #topTwoJets = e_jetPt.argsort()[::-1][:2]
@@ -159,11 +164,11 @@ def computeEfficiency():
     for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt, e_jetPhi, e_jetEta):
     #for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt[topTwoJets], e_jetPhi, e_jetEta):
       #only want jets with jetPt > 200 GeV (recorded in MeV)
-      if j_jetPt/1000. < triggerableThresh:
+      if j_jetPt < triggerableThresh:
         continue
       triggerableJets.append([j_jetPt, j_jetPhi, j_jetEta])
       gFEXpT = gridAddJet(grid, j_jetPt, j_jetPhi, j_jetEta)
-      if gFEXpT/1000. > triggeredThresh:
+      if gFEXpT > triggeredThresh:
         triggeredJets.append([j_jetPt, j_jetPhi, j_jetEta])
     #if numJets > 3 or e_jetPt.max()/1000. >= 600.:
     #  gridPlotEvent(grid, np.array(triggerableJets))
@@ -176,7 +181,7 @@ def computeEfficiency():
   nonZerobins = np.where(histTriggerable[0] != 0)
   efficiency = np.true_divide(histTriggered[0][nonZerobins], histTriggerable[0][nonZerobins])
   pl.figure()
-  pl.scatter(histTriggerable[1][nonZerobins]/1000., efficiency)
+  pl.scatter(histTriggerable[1][nonZerobins], efficiency)
   pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Efficiency')
   pl.title('%d bins, Triggerable = %d GeV, Triggered = %d GeV' % (numBins, triggerableThresh, triggeredThresh))
@@ -190,7 +195,7 @@ def computeEfficiency():
   gFEX_nonZerobins = np.where(gFEX_histTriggerable[0] != 0)
   gFEX_efficiency = np.true_divide(gFEX_histTriggered[0][gFEX_nonZerobins], gFEX_histTriggerable[0][gFEX_nonZerobins])
   pl.figure()
-  pl.scatter(gFEX_histTriggerable[1][gFEX_nonZerobins]/1000., gFEX_efficiency)
+  pl.scatter(gFEX_histTriggerable[1][gFEX_nonZerobins], gFEX_efficiency)
   pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Efficiency')
   pl.title('%d bins, Triggerable = %d GeV, Triggered = %d GeV' % (numBins, triggerableThresh, triggeredThresh))
