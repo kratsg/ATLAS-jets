@@ -2,12 +2,24 @@ import ROOT
 import numpy as np
 import pylab as pl
 import matplotlib
-import root_numpy as rnp
 
-#absolute filenames make sense, easier to find what file we talking about
-filename = '/Users/giordon/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
-#load up the root file into a numpy.darray
-events = rnp.root2rec(filename, 'jets')
+events = ''
+def read_file():
+  global events
+  try:
+    import root_numpy as rnp
+    # absolute filenames make sense, easier to find what file we talking about
+    filename = '/Users/giordon/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
+    # load up the root file into a numpy.recarray
+    events = rnp.root2rec(filename, 'jets')
+    print "read file using root_numpy"
+  except:
+    import pickle
+    filename = open('jetsData.pkl','rb')
+    events = pickle.load(filename)
+    print "read file using pickle"
+
+read_file()
 #map pointers to column names within the file
 jetE,jetPt,jetM,jetEta,jetPhi,_,_,_,_,_ = events.dtype.names
 #jetE: jet energy
@@ -36,9 +48,9 @@ For each event, we want to generate an eti-phi grid of jets
 #want domain of grid, not of the total window view
 domain = np.array([[-3.2,3.2], [0.0, 3.2]])
 #resolution is basically gridSize for right now
-resolution = np.array([0.2, 0.2])
+resolution = np.array([0.05, 0.05])
 #define jet radius in each direction [phi, eta]
-jetRadius = np.array([1.0,1.0])
+jetRadius = np.array([0.85,0.85])
 #calculate the centroidArea
 # we add radius to both sides and include '1' for the center
 centroidArea = np.multiply.reduce(2*jetRadius/resolution + np.array([1,1]))
@@ -173,7 +185,7 @@ def gridPlotEvent(grid, triggerableJets):
   #adding fake elements to fix legend
   fake = matplotlib.patches.Rectangle((0,0), 1, 1, fill=False, edgecolor='none', visible=False)
   for jetPt, jetPhi, jetEta in triggerableJets:
-    print "\t"*2, "(%0.2f, %0.2f) -- %0.3f" % (jetPhi,jetEta,jetPt/1000.)
+    print "\t"*2, "(%0.2f, %0.2f) -- %0.3f" % (jetPhi,jetEta,jetPt)
   #transpose is necessary! want x = eta, y = phi
   pl.imshow(grid.T, cmap = pl.cm.spectral)
   #x is phi
@@ -197,15 +209,17 @@ def gridPlotEvent(grid, triggerableJets):
   pl.yticks(yticks_loc, yticks_label)
   cbar = pl.colorbar(shrink=0.75, pad=.2)
   cbar.set_label('pT (GeV)')
-  pl.show()
-
+  pl.savefig("%d-jets_top-%d-GeV_next-%d-GeV.png" % (len(triggerableJets), np.round(topEnergy), np.round(nextTopEnergy)))
 
 def computeEfficiency():
   global events, triggerableThresh
   triggerableJets = []
   triggeredJets = []
+  i = 0
   for event in events:
-    #triggerableJets = []
+    i+= 1
+    if i % 25 == 0:
+      print "Event #%d" % i
     grid = gridInitialize()
     e_jetE,e_jetPt,e_jetM,e_jetEta,e_jetPhi,_,_,_,_,_ = event
     e_jetPt /= 1000.
@@ -214,7 +228,6 @@ def computeEfficiency():
     #topTwoJets = e_jetPt.argsort()[::-1][:2]
     #print 'adding event with %d jets' % numJets
     for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt, e_jetPhi, e_jetEta):
-    #for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt[topTwoJets], e_jetPhi, e_jetEta):
       #only want jets with jetPt > 200 GeV (recorded in MeV)
       if j_jetPt < triggerableThresh:
         continue
@@ -222,7 +235,6 @@ def computeEfficiency():
       gFEXpT = gridAddJet(grid, j_jetPt, j_jetPhi, j_jetEta)
       if gFEXpT > triggeredThresh:
         triggeredJets.append([j_jetPt, j_jetPhi, j_jetEta])
-    #gridPlotEvent(grid, np.array(triggerableJets))
   triggerableJets = np.array(triggerableJets)
   triggeredJets = np.array(triggeredJets)
   binRange = (triggerableJets[:,0].min(), triggerableJets[:,0].max())
@@ -253,10 +265,40 @@ def computeEfficiency():
   pl.title('%d bins, Triggerable = %d GeV, Triggered = %d GeV' % (numBins, triggerableThresh, triggeredThresh))
   pl.savefig('efficiency_gFEX_%d_%d.png' % (triggerableThresh, triggeredThresh))
 
+def showEvents(maxNum=25):
+  global events, triggerableThresh
+  i = 0
+  for event in events:
+    triggerableJets = []
+    triggeredJets = []
+    grid = gridInitialize()
+    e_jetE,e_jetPt,e_jetM,e_jetEta,e_jetPhi,_,_,_,_,_ = event
+    e_jetPt /= 1000.
+    numJets = e_jetPt.size
+    #we only want to compute efficiency for top two jets
+    #topTwoJets = e_jetPt.argsort()[::-1][:2]
+    #print 'adding event with %d jets' % numJets
+    for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt, e_jetPhi, e_jetEta):
+    #for j_jetPt, j_jetPhi, j_jetEta in zip(e_jetPt[topTwoJets], e_jetPhi, e_jetEta):
+      #only want jets with jetPt > 200 GeV (recorded in MeV)
+      if j_jetPt < triggerableThresh:
+        continue
+      triggerableJets.append([j_jetPt, j_jetPhi, j_jetEta])
+      gFEXpT = gridAddJet(grid, j_jetPt, j_jetPhi, j_jetEta)
+      if gFEXpT > triggeredThresh:
+        triggeredJets.append([j_jetPt, j_jetPhi, j_jetEta])
+    gridPlotEvent(grid, np.array(triggerableJets))
+    print "Triggered Jets"
+    for triggeredJet in triggeredJets:
+      print "\t Energy:", triggeredJet[0], "\t", "Coords:", (triggeredJet[1],triggeredJet[2])
+    i+=1
+    if i >= maxNum:
+      return True
+
+
 def testScript():
   global resolution
   resolution /= 10.
   grid = gridInitialize()
   print gridAddJet(grid, 500., 0.0, 1.6)
 
-computeEfficiency()
