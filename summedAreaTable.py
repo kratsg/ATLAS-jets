@@ -2,13 +2,12 @@ import ROOT
 import numpy as np
 import pylab as pl
 import matplotlib
-#import scipy.special
 import root_numpy as rnp
 
 #absolute filenames make sense, easier to find what file we talking about
 filename = '/Users/giordon/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
 #load up the root file into a numpy.darray
-events = rnp.root2array(filename, 'jets')
+events = rnp.root2rec(filename, 'jets')
 #map pointers to column names within the file
 jetE,jetPt,jetM,jetEta,jetPhi,_,_,_,_,_ = events.dtype.names
 #jetE: jet energy
@@ -63,28 +62,41 @@ def gridInitialize():
   #note that phieta2cell(domain[:,0]) = (0,0) by definition
   return np.zeros(phieta2cell(domain[:,1])).astype(float)
 
-#work around since David doesn't have SciPy working
+# work around since David doesn't have SciPy working
+# will try to use scipy.special.erf(x), but defaults to
+#       custom function (not as accurate)
 def erf(x):
-  # save the sign of x
-  sign = 1 if x >= 0 else -1
-  x = np.fabs(x)
-  # constants
-  a1 =  0.254829592
-  a2 = -0.284496736
-  a3 =  1.421413741
-  a4 = -1.453152027
-  a5 =  1.061405429
-  p  =  0.3275911
-  # A&S formula 7.1.26
-  t = 1.0/(1.0 + p*x)
-  y = 1.0 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*np.exp(-x*x)
-  return sign*y # erf(-x) = -erf(x)
+  try: 
+    import scipy.special
+    erf_loaded = True 
+  except ImportError: 
+    erf_loaded = False 
+
+  if erf_loaded:
+    return scipy.special.erf(x)
+  else:
+    # save the sign of x
+    sign = 1 if x >= 0 else -1
+    x = np.fabs(x)
+    # constants
+    a1 =  0.254829592
+    a2 = -0.284496736
+    a3 =  1.421413741
+    a4 = -1.453152027
+    a5 =  1.061405429
+    p  =  0.3275911
+    # A&S formula 7.1.26
+    t = 1.0/(1.0 + p*x)
+    y = 1.0 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*np.exp(-x*x)
+    return sign*y # erf(-x) = -erf(x)
 
 # returns a 2D gaussian centered at mu evaluated at coord (must be in cell grid)
 def gaussian2D(mu, sigma, amplitude, coord):
   # normalize gaussian so that the integral is just the amplitude
   #    Note: normalization is 2 pi sx sy * amplitude
-  A = amplitude/(2*np.pi*sigma[0]*sigma[1]*erf(2.**-0.5)**2.)
+
+  # normalized such that testScript outputs 476.275
+  A = amplitude/(2*np.pi*sigma[0]*sigma[1]*erf(0.92*(2.**-0.5))**2.)
   #A = amplitude/(2*np.pi*sigma[0]*sigma[1]*scipy.special.erf(2.**-0.5)**2.)
   exponential = np.exp(-( (mu[0] - coord[0])**2./(2.*(sigma[0]**2.)) + (mu[1] - coord[1])**2./(2.*(sigma[1]**2.))  ))
   return A*exponential
@@ -152,7 +164,7 @@ def gridAddJet(grid, jetPt, jetPhi, jetEta):
       # -- the reason is that we filter out all inappropriate eta coordinates
       #        and then wrap around in the phi coordinates
       print "\t"*2, '-- jet coord could not be added:', coord
-  print jetPt, energyRecorded, cell2phieta(jetCoords)
+  #print jetPt, energyRecorded, cell2phieta(jetCoords)
   return energyRecorded
 
 def gridPlotEvent(grid, triggerableJets):
@@ -193,7 +205,7 @@ def computeEfficiency():
   triggerableJets = []
   triggeredJets = []
   for event in events:
-    triggerableJets = []
+    #triggerableJets = []
     grid = gridInitialize()
     e_jetE,e_jetPt,e_jetM,e_jetEta,e_jetPhi,_,_,_,_,_ = event
     e_jetPt /= 1000.
@@ -210,7 +222,7 @@ def computeEfficiency():
       gFEXpT = gridAddJet(grid, j_jetPt, j_jetPhi, j_jetEta)
       if gFEXpT > triggeredThresh:
         triggeredJets.append([j_jetPt, j_jetPhi, j_jetEta])
-    gridPlotEvent(grid, np.array(triggerableJets))
+    #gridPlotEvent(grid, np.array(triggerableJets))
   triggerableJets = np.array(triggerableJets)
   triggeredJets = np.array(triggeredJets)
   binRange = (triggerableJets[:,0].min(), triggerableJets[:,0].max())
@@ -226,8 +238,9 @@ def computeEfficiency():
   pl.title('%d bins, Triggerable = %d GeV, Triggered = %d GeV' % (numBins, triggerableThresh, triggeredThresh))
   pl.savefig('efficiency_jets_%d_%d.png' % (triggerableThresh, triggeredThresh))
   #now compute the efficiency inside the gFEX by applying boundary conditions to filter out centroid locations
-  gFEX_triggerableJets = np.array(filter(lambda x: boundaryConditions(grid,phieta2cell((x[1],x[2]))), triggerableJets))
-  gFEX_removedJets = np.array(filter(lambda x: not boundaryConditions(grid,phieta2cell((x[1],x[2]))), triggerableJets))
+
+  gFEX_triggerableJets = np.array(filter(lambda x: x[2] >= 0.0, triggerableJets))
+  gFEX_removedJets = np.array(filter(lambda x: x[2] < 0.0, triggerableJets))
   gFEX_triggeredJets = np.array([jet for jet in triggeredJets if jet not in gFEX_removedJets])
   gFEX_histTriggerable = np.histogram(gFEX_triggerableJets[:,0], range=binRange, bins=numBins)
   gFEX_histTriggered = np.histogram(gFEX_triggeredJets[:,0], range=binRange, bins=numBins)
@@ -240,4 +253,10 @@ def computeEfficiency():
   pl.title('%d bins, Triggerable = %d GeV, Triggered = %d GeV' % (numBins, triggerableThresh, triggeredThresh))
   pl.savefig('efficiency_gFEX_%d_%d.png' % (triggerableThresh, triggeredThresh))
 
-#computeEfficiency()
+def testScript():
+  global resolution
+  resolution /= 10.
+  grid = gridInitialize()
+  print gridAddJet(grid, 500., 0.0, 1.6)
+
+computeEfficiency()
