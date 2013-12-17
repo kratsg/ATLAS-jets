@@ -9,7 +9,7 @@ def read_file():
   try:
     import root_numpy as rnp
     # absolute filenames make sense, easier to find what file we talking about
-    filename = '/Users/giordon/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
+    filename = '/Users/kratsg/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
     # load up the root file into a numpy.recarray
     events = rnp.root2rec(filename, 'jets')
     print "read file using root_numpy"
@@ -299,8 +299,8 @@ def testScript():
   grid = gridInitialize()
   print gridAddJet(grid, 500., 0.0, 1.6)
 
-print "Running compute efficiency at resolution of 0.2 x 0.2"
-resolution *= 10.
-computeEfficiency()
-print "Now running showEvents(5)"
-showEvents(5)
+#print "Running compute efficiency at resolution of 0.2 x 0.2"
+#resolution *= 10.
+#computeEfficiency()
+#print "Now running showEvents(5)"
+#showEvents(5)
