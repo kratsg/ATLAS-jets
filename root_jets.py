@@ -3,6 +3,9 @@
 #ROOT is needed to deal with rootfiles
 import ROOT
 
+#root_numpy is needed to read the rootfile
+import root_numpy as rnp
+
 # numpy and matplotlib (mpl) are used for computing and plotting 
 import numpy as np
 import matplotlib.pyplot as pl
@@ -57,7 +60,7 @@ class Grid:
     """
     self.domain                = np.array(domain).astype(float)
     self.pixel_resolution      = np.float(pixel_resolution)
-    self.grid = np.zeros(self.phieta2pixel(self.__domain[:,1])).astype(float)
+    self.grid = np.zeros(self.phieta2pixel(self.domain[:,1])).astype(float)
 
   def phieta2pixel(self, phieta_coord):
     '''Converts (phi,eta) -> (pixel_x, pixel_y)'''
@@ -78,10 +81,14 @@ class Grid:
       return False
 
   def add_event(self, event):
+    if not isinstance(event, Event):
+      raise TypeError("You must use an Event object! You gave a %s object" % event.__class__.__name__)
     for jet in event:
       self.add_jet(jet)
 
   def add_jet(self, jet):
+    if not isinstance(jet, Jet):
+      raise TypeError("You must use a Jet object! You gave us a %s object" % jet.__class__.__name__)
     '''add a single `jet` to the current grid'''
     for pixel_coord, fractional_energy in self.__generate_mesh(jet):
       try:
@@ -98,7 +105,7 @@ class Grid:
 
   def __jetdPt(self, pixel_jetcoord, pixel_radius, jet_energy, pixel_coord):
     '''return the fractional energy at `pixel_coord` of a `jet_energy` GeV jet centered at `pixel_jetcoord` of radius `pixel_radius`'''
-    return gaussian2D(pixel_jetcoord, pixel_radius, jet_energy, pixel_coord)
+    return self.__gaussian2D(pixel_jetcoord, pixel_radius, jet_energy, pixel_coord)
 
   def __gaussian2D(self, pixel_mu, pixel_radius, amplitude, pixel_coord):
     '''return the 2D gaussian(mu, sigma) evaluated at coord'''
@@ -112,12 +119,12 @@ class Grid:
     '''return the 2D mesh generator of `pixel_coords` for a `jet` to add to grid'''
     # convert to pixel coordinates and deal with grid
     pixel_jetcoord = self.phieta2pixel(jet.coord)
-    pixel_radius = jet.radius/self.resolution
+    pixel_radius = jet.radius/self.pixel_resolution
     # what we define as the jet energy for `self.__jetdPt`
     jet_energy = jet.pT
     # always start with a square mesh
     i,j = self.__square_mesh(pixel_jetcoord, pixel_radius)
-    mesh = ([tuple(pixel_coord), self.__jetdPt(pixel_jetcoord, pixel_radius, jet_energy, pixel_coord)] for pixel_coord in np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int) if self.boundary_conditions(coord)&circularRegion(pixel_jetcoord, pixel_radius, pixel_coord) )
+    mesh = ([tuple(pixel_coord), self.__jetdPt(pixel_jetcoord, pixel_radius, jet_energy, pixel_coord)] for pixel_coord in np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int) if self.boundary_conditions(pixel_coord)&circularRegion(pixel_jetcoord, pixel_radius, pixel_coord) )
     return mesh
 
   def __square_mesh(self, center, radius):
@@ -128,17 +135,17 @@ class Grid:
     '''Creates a figure of the current grid'''
     fig = pl.figure()
     # plot the grid
-    pl.imshow(self.__grid.T, cmap = pl.cm.spectral)
+    pl.imshow(self.grid.T, cmap = pl.cm.spectral)
     # x-axis is phi, y-axis is eta
-    xticks_loc = pl.axes().xaxis().get_majorticklocs()
-    yticks_loc = pl.axes().yaxis().get_majorticklocs()
+    xticks_loc = pl.axes().xaxis.get_majorticklocs()
+    yticks_loc = pl.axes().yaxis.get_majorticklocs()
     # make labels
     pl.xlabel('$\phi$')
     pl.ylabel('$\eta$')
     pl.title(title)
     # transform labels from pixel coords to phi-eta coords
-    xticks_label = xticks_loc * self.__pixel_resolution + self.__domain[0,0]
-    yticks_label = yticks_loc * self.__pixel_resolution + self.__domain[1,0]
+    xticks_label = xticks_loc * self.pixel_resolution + self.domain[0,0]
+    yticks_label = yticks_loc * self.pixel_resolution + self.domain[1,0]
     pl.xticks(xticks_loc, xticks_label)
     pl.yticks(yticks_loc, yticks_label)
     # set the colorbar
@@ -155,8 +162,10 @@ class Grid:
     '''Save an image of the current grid to file'''
     fig = self.__make_plot(title)
     fig.savefig(filename)
-    
 
+  def __str__(self):
+    return "Grid object:\n\tPhi: %s\n\tEta: %s\n\tResolution: %0.2f" % (self.domain[0], self.domain[1], self.pixel_resolution)
+    
 class Jet:
   def __init__(self,\
                inputThresh    = 200.,\
@@ -166,7 +175,8 @@ class Jet:
                m              = 0.0,\
                eta            = 0.0,\
                phi            = 0.0,\
-               radius         = 0.0,\
+               radius         = 1.0,\
+               input_energy   = 0.0,\
                trigger_energy = 0.0):
     '''Defines a jet'''
     """
@@ -182,23 +192,89 @@ class Jet:
         - phi            : polar angle in the transverse plane
         -- theta is angle between particle momentum and the beam axis
         -- see more: http://en.wikipedia.org/wiki/Pseudorapidity
-      radius             : radius of jet
-      trigger_energy  : amount of energy actually recorded on the grid
+      radius             : radius of jet (eta-phi coordinates)
+      input_energy       : the input energy of the jet
+      trigger_energy     : amount of energy actually recorded on the grid
     """
-    self.inputThresh   = np.float(inputThresh)
-    self.triggerThresh = np.float(triggerThresh)
-    self.E             = np.float(E)
-    self.pT            = np.float(pT)
-    self.m             = np.float(m)
-    self.coord         = (np.float(phi), np.float(eta))
-    self.radius        = np.float(radius)
+    self.inputThresh    = np.float(inputThresh)
+    self.triggerThresh  = np.float(triggerThresh)
+    self.E              = np.float(E)
+    self.pT             = np.float(pT)
+    self.m              = np.float(m)
+    self.phi            = np.float(phi)
+    self.eta            = np.float(eta)
+    self.coord          = (self.phi, self.eta)
+    self.radius         = np.float(radius)
+    self.input_energy   = np.float(pT)
+    self.trigger_energy = np.float(trigger_energy)
 
   def __str__(self):
-    return "Jet located at (%0.4f,%0.4f) with E = %0.2f (GeV), pT = %0.2f (GeV), and m = %0.2f (GeV)"
+    return "Jet object:\n\tPhi: %0.4f\n\tEta: %0.4f\n\tE: %0.2f (GeV)\n\tpT: %0.2f (GeV)\n\tm: %0.2f (GeV)\n\tInputted: %s\n\tTriggered: %s" % (self.phi, self.eta, self.E, self.pT, self.m, self.inputted(), self.triggered())
 
-  def triggerable(self):
-    pass
+  def inputted(self):
+    return self.input_energy > self.inputThresh
 
   def triggered(self):
-    pass
+    return self.trigger_energy > self.triggerThresh
 
+class Events:
+  def __init__(self, filename = ''):
+    self.filename = filename
+    self.events   = []
+
+  def __read_root_file(self):
+    # read in file into a numpy record array
+    self.events = rnp.root2rec(self.filename, 'jets')
+
+  def load(self):
+    self.__read_root_file()
+    self.events = [Event(event=event) for event in self.events]
+
+  def __iter__(self):
+    # initialize to start of list
+    self.iter_index = -1
+    # `return self` to use `next()`
+    return self
+
+  def next(self):
+    self.iter_index += 1
+    if self.iter_index == len(self.events):
+      raise StopIteration
+    return self.events[self.iter_index]
+
+  def __getitem__(self, index):
+    return self.events[index]
+
+  def __str__(self):
+    return "Events object with %d Event objects" % len(self.events)
+  
+class Event:
+  def __init__(self, event = []):
+    self.jets = []
+    # format generally comes as a tuple of 10 lists, each list
+    #    is filled by that property for all jets like so
+    #  ( [ jetE_0, jetE_1, jetE_2], [ jetPt_0, jetPt_1, jetPt_2 ], ...)
+    for jetE, jetPt, jetM, jetEta, jetPhi, _, _, _, _, _ in zip(*event):
+      self.jets.append(Jet(E=jetE,\
+                           pT=jetPt,\
+                           m=jetM,\
+                           eta=jetEta,\
+                           phi=jetPhi))
+
+  def __iter__(self):
+    # initialize to start of list
+    self.iter_index = -1
+    # `return self` to use `next()`
+    return self
+
+  def next(self):
+    self.iter_index += 1
+    if self.iter_index == len(self.jets):
+      raise StopIteration
+    return self.jets[self.iter_index]
+
+  def __getitem__(self, index):
+    return self.jets[index]
+
+  def __str__(self):
+    return "Event object with %d Jet objects" % len(self.jets)
