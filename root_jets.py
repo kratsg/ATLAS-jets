@@ -51,16 +51,26 @@ def circularRegion(pixel_jetcoord, pixel_radius, pixel_coord):
 class Grid:
   def __init__(self,\
                domain                = np.array([[-3.2,3.2],[0.0,3.2]]),\
-               pixel_resolution      = 0.20):
+               pixel_resolution      = 0.20,\
+               recon_algo            = 'gaussian'):
     '''Generates a grid of zeros based on size of domain and resolution'''
     """
         - domain: [ (phi_min, phi_max) , (eta_min, eta_max) ]
         - resolution
           - pixel: how big a single pixel is in eta-phi
+        - recon_algo: which jet reconstruction algorithm to use
+          - uniform  (implemented)
+          - gaussian (implemented)
+          - dipole   (not implemented)
+          - j3       (not implemented)
     """
     self.domain                = np.array(domain).astype(float)
     self.pixel_resolution      = np.float(pixel_resolution)
     self.grid = np.zeros(self.phieta2pixel(self.domain[:,1])).astype(float)
+    valid_algorithms = ['uniform', 'gaussian', 'dipole', 'j3']
+    if recon_algo not in valid_algorithms:
+      raise ValueError('%s is not a valid algorithm. Choose from %s' % (recon_algo, valid_algorithms))
+    self.recon_algo = recon_algo
 
   def phieta2pixel(self, phieta_coord):
     '''Converts (phi,eta) -> (pixel_x, pixel_y)'''
@@ -105,7 +115,12 @@ class Grid:
 
   def __jetdPt(self, pixel_jetcoord, pixel_radius, jet_energy, pixel_coord):
     '''return the fractional energy at `pixel_coord` of a `jet_energy` GeV jet centered at `pixel_jetcoord` of radius `pixel_radius`'''
-    return self.__gaussian2D(pixel_jetcoord, pixel_radius, jet_energy, pixel_coord)
+    if self.recon_algo == 'uniform':
+      # uniform energy is calculated in self.__generate_mesh due to efficiency concerns
+      raise Exception('should not be calling this function when self.recon_algo == \'uniform\'')
+      return false
+    elif self.recon_algo == 'gaussian':
+      return self.__gaussian2D(pixel_jetcoord, pixel_radius, jet_energy, pixel_coord)
 
   def __gaussian2D(self, pixel_mu, pixel_radius, amplitude, pixel_coord):
     '''return the 2D gaussian(mu, sigma) evaluated at coord'''
@@ -123,13 +138,18 @@ class Grid:
     # what we define as the jet energy for `self.__jetdPt`
     jet_energy = jet.pT
     # always start with a square mesh
-    i,j = self.__square_mesh(pixel_jetcoord, pixel_radius)
-    mesh = ([tuple(pixel_coord), self.__jetdPt(pixel_jetcoord, pixel_radius, jet_energy, pixel_coord)] for pixel_coord in np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int) if self.boundary_conditions(pixel_coord)&circularRegion(pixel_jetcoord, pixel_radius, pixel_coord) )
+    square_mesh_coords = self.__square_mesh(pixel_jetcoord, pixel_radius)
+    if self.recon_algo == 'uniform':
+      uniform_jetdPt = jet_energy/(square_mesh_coords.size/2.)
+      mesh = ([tuple(pixel_coord), uniform_jetdPt] for pixel_coord in square_mesh_coords if self.boundary_conditions(pixel_coord) )
+    elif self.recon_algo == 'gaussian':
+      mesh = ([tuple(pixel_coord), self.__jetdPt(pixel_jetcoord, pixel_radius, jet_energy, pixel_coord)] for pixel_coord in square_mesh_coords if self.boundary_conditions(pixel_coord)&circularRegion(pixel_jetcoord, pixel_radius, pixel_coord) )
     return mesh
 
   def __square_mesh(self, center, radius):
     '''generates a square meshgrid of points for center and sidelength 2*radius'''
-    return np.meshgrid( np.arange(center[0] - radius, center[0]+radius+1), np.arange(center[1] - radius, center[1]+radius+1) )
+    i,j = np.meshgrid( np.arange(center[0] - radius, center[0]+radius+1), np.arange(center[1] - radius, center[1]+radius+1) )
+    return np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int)
 
   def __make_plot(self, title='Grid Plot'):
     '''Creates a figure of the current grid'''
@@ -278,3 +298,25 @@ class Event:
 
   def __str__(self):
     return "Event object with %d Jet objects" % len(self.jets)
+
+class Analysis:
+  def __init__(self, events = [], num_bins = 50):
+    self.events = events
+    self.num_bins = 50
+
+  def Efficiency(self):
+    input_jets = np.array([jet.pT for event in self.events for jet in [event[0], event[1]] if jet.inputted()])
+    trigger_jets = np.array([jet.pT for event in self.events for jet in [event[0], event[1]] if jet.triggered()])
+
+    bin_range = (input_jets.min(), input_jets.max())
+    histogram_input = np.histogram(input_jets, range=bin_range, bins=self.num_bins)
+    histogram_trigger = np.histogram(trigger_jets, range=bin_range, bins=self.num_bins)
+    nonzero_bins = np.where(histogram_input[0] != 0)
+    efficiency = np.true_divide(histogram_trigger[0][nonzero_bins], histogram_input[0][nonzero_bins])
+
+    pl.figure()
+    pl.scatter(histogram_input[1][nonzero_bins], efficiency)
+    pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
+    pl.ylabel('Efficiency')
+    pl.title('Turn-on Plot')
+    pl.show()
