@@ -298,3 +298,25 @@ class Event:
 
   def __str__(self):
     return "Event object with %d Jet objects" % len(self.jets)
+
+class Analysis:
+  def __init__(self, events = [], num_bins = 50):
+    self.events = events
+    self.num_bins = 50
+
+  def Efficiency(self):
+    input_jets = np.array([jet.pT for event in self.events for jet in [event[0], event[1]] if jet.inputted()])
+    trigger_jets = np.array([jet.pT for event in self.events for jet in [event[0], event[1]] if jet.triggered()])
+
+    bin_range = (input_jets.min(), input_jets.max())
+    histogram_input = np.histogram(input_jets, range=bin_range, bins=self.num_bins)
+    histogram_trigger = np.histogram(trigger_jets, range=bin_range, bins=self.num_bins)
+    nonzero_bins = np.where(histogram_input[0] != 0)
+    efficiency = np.true_divide(histogram_trigger[0][nonzero_bins], histogram_input[0][nonzero_bins])
+
+    pl.figure()
+    pl.scatter(histogram_input[1][nonzero_bins], efficiency)
+    pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
+    pl.ylabel('Efficiency')
+    pl.title('Turn-on Plot')
+    pl.show()
