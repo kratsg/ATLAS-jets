@@ -1,4 +1,6 @@
-import root_jets as Jets
+from root_jets import *
+filename = '/Users/kratsg/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
+
 from multiprocessing import Process, Queue, cpu_count
 
 class Consumer(Process):
@@ -16,24 +18,16 @@ class Consumer(Process):
         break
       result = next_task()
       self.results.put(result)
-      return
+    return
 
 class Task(object):
   def __init__(self, event):
     self.event = event
   def __call__(self):
-    grid = Jets.Grid(pixel_resolution=0.02)
+    grid = Grid(pixel_resolution=0.2)
     grid.add_event(self.event)
     return self.event
   def __str__(self):
-    pass
-
-class JetAnalysis:
-  '''A good holder for all the jet analysis we might do - computationally'''
-  def __init__(self):
-    pass
-
-  def efficiency(self, events=[]):
     pass
 
 # Must use this to avoid spawning multiple processes and screwing up name-scope etc...
@@ -41,10 +35,9 @@ class JetAnalysis:
 #       but we really do need this
 if __name__ == '__main__':
   # load up the events
-  filename = '/Users/kratsg/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
-  events = Jets.Events(filename=filename)
-  processed_events = []
+  events = Events(filename=filename)
   events.load()
+  processed_events = []
 
   # Establish communication queues
   tasks, results = Queue(), Queue()
@@ -56,9 +49,6 @@ if __name__ == '__main__':
   for event in events:
     tasks.put(Task(event))
     num_tasks += 1
-
-  for jet in events[0]:
-    print jet
 
   # poison pill to stop processing
   for i in range(num_consumers):
@@ -74,3 +64,5 @@ if __name__ == '__main__':
     num_tasks -= 1
 
   # at this point, processed_events is the events array that contains calculated events with no issue
+  analysis = Analysis(processed_events)
+  analysis.Efficiency()
