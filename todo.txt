@@ -1,0 +1,56 @@
+Goals:
+- uniform jet reconstruction algorithm
+- R = 1.0 for jet
+- expect turn on between 100-300 GeV (adjust the thresholds for this while keeping good efficiency)
+- want final results in 2 motherfucking weeks (turn on curves)
+
+How to do:
+- build gTowers code that takes in cell elements and outputs a "painted" grid
+- generate <~ 10 seeds (cells above threshold energy, say 40 GeV)
+- use the seeds to create meshes that correspond to a jet centered at that seed, add up the pt and get jet info
+- make turn-on plot
+
+
+
+
+[1/15/14, 12:29:09 PM] Michael Begel: We can't hear you either
+[1/15/14, 12:31:49 PM] Michael Begel: We need a common piece of code for L1Calo that creates the gTowers and is validated to give the same answers between python and C++
+[1/15/14, 12:32:12 PM] Michael Begel: It should also be validated against Francesco's detector maps and Denis' supercell output
+[1/15/14, 12:32:36 PM] Michael Begel: We'll need a commonly accessible SVN area under ATLAS L1Calo but for now we can use Oregon.
+[1/15/14, 12:33:25 PM] Michael Begel: With proper digitizations...
+[1/15/14, 12:33:46 PM] Michael Begel: We must have real results in <2 weeks.
+[1/15/14, 12:33:49 PM] Michael Begel: Code must be ready ASAP
+[1/15/14, 12:34:37 PM] Michael Begel: I mean turn-on curves for fat jets in 100-300 GeV range
+[1/15/14, 12:34:56 PM] Michael Begel: We must also have the infrastructure flexible enough to run different algorithms and weighting surfaces
+[1/15/14, 12:35:04 PM] Michael Begel: 4-vectors aren't as important yet
+[1/15/14, 12:35:10 PM] Michael Begel: similar for angles
+[1/15/14, 12:35:53 PM] Michael Begel: The distribution of energies is the output of the simulation -- we don't control it
+[1/15/14, 12:36:46 PM] Michael Begel: We need to adjust the reconstruction algorithms
+[1/15/14, 12:38:19 PM] Michael Begel: Today?
+[1/15/14, 12:39:25 PM] Michael Begel: Turn-on for top with pT~100-300 GeV
+[1/15/14, 12:40:42 PM] Giordon Stark: What do you want the turn-on (trigger able) energy threshold to be set at? 200 GeV?
+[1/15/14, 12:41:05 PM] Michael Begel: It should be a scan so that we can create the threshold after the fact.
+[1/15/14, 12:41:14 PM] Michael Begel: We don't know what threshold corresponds to 200 GeV offline.
+[1/15/14, 12:44:14 PM] Giordon Stark: Right, when you scan over pT - and you should see the turn-on around that region. But what do you want to set the threshold for triggering?
+[1/15/14, 12:44:32 PM] Michael Begel: 200 GeV in offline pT.  I don't know what this will corresond to in L1 ET
+[1/15/14, 12:45:20 PM] Michael Begel: R=1.0
+[1/15/14, 12:45:48 PM] Michael Begel: Rho, phi rings, noise cuts
+[1/15/14, 12:46:17 PM] Michael Begel: The 200 GeV should be the 99%, the actual threshold will be lower.
+[1/15/14, 12:47:22 PM] whh0407: I will document the code better, currently it's not really understandable
+[1/15/14, 12:47:36 PM] Michael Begel: For the jet algorithm, we should start with simple cone using flat weighting
+[1/15/14, 12:47:55 PM] Michael Begel: Then change weighting functions to Gaussian, Dipole, & J3 (Bessel)
+[1/15/14, 12:48:13 PM] Michael Begel: And go for other algorithms that can be put in an FPGA (no iterations!)
+[1/15/14, 12:48:25 PM] Giordon Stark: Ok, Yep.
+[1/15/14, 12:48:47 PM] Giordon Stark: Right now, my code uses Gaussian weighting (2D Gaussian) normalized so that a 500 GeV input jet has ~ 475 GeV within the window.
+[1/15/14, 12:48:59 PM] Giordon Stark: [we have to chop off the gaussian at the radius of the jet ~ 0.85]
+[1/15/14, 12:49:01 PM] Michael Begel: See jets with gTowers over some threshold.  Choose threshold so that the efficiency is good and the multiplicity of fat jets <~10
+[1/15/14, 12:49:21 PM] Michael Begel: All weights chop off at the R=1.0 boundary
+[1/15/14, 12:49:46 PM] Michael Begel: We don't care that we see the full energy, we care that we are efficient for signal and have good rejection for background
+[1/15/14, 12:51:22 PM] Giordon Stark: We want fixed radius on the jets for right now, right?
+[1/15/14, 12:51:31 PM] Michael Begel: Look at calorimeter grid.  Find all gTowers with pT>X.
+[1/15/14, 12:51:56 PM] Michael Begel: Sum energies in gTowers around the seed towers out to R=1.0 (use center-of-2x2 bin for now).
+[1/15/14, 12:52:20 PM] Michael Begel: Result = simple cone jets with R=1.0 where multiplicity == number of seeds
+[1/15/14, 12:52:35 PM] Michael Begel: overlapping energies are added to both jets with weight=1.0
+[1/15/14, 12:54:37 PM] Michael Begel: We'll need to present an initial result at an L1Calo meeting in <2 weeks
+[1/15/14, 12:55:23 PM] Giordon Stark: Do you want to see multiple weighting algorithms or just gaussian / uniform for now?
+[1/15/14, 12:55:37 PM] Michael Begel: Just uniform for now.  No other weights until we understand the simplest possible choice
