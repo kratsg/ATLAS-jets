@@ -103,6 +103,12 @@ class Grid:
     for jet in event:
       self.add_jet(jet)
 
+  def add_tower(self, tower):
+    if not isinstance(tower, Tower):
+      raise TypeError("You must use a Tower object! You gave us a %s object" % tower.__class__.__name__
+    '''add a single `tower` to the current grid'''
+
+
   def add_jet(self, jet):
     if not isinstance(jet, Jet):
       raise TypeError("You must use a Jet object! You gave us a %s object" % jet.__class__.__name__)
