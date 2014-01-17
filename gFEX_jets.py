@@ -52,7 +52,7 @@ class Grid:
   def __init__(self,\
                domain                = np.array([[-3.2,3.2],[0.0,3.2]]),\
                pixel_resolution      = 0.20,\
-               recon_algo            = 'gaussian'):
+               recon_algo            = 'uniform'):
     '''Generates a grid of zeros based on size of domain and resolution'''
     """
         - domain: [ (phi_min, phi_max) , (eta_min, eta_max) ]
@@ -67,6 +67,7 @@ class Grid:
     self.domain                = np.array(domain).astype(float)
     self.pixel_resolution      = np.float(pixel_resolution)
     self.grid = np.zeros(self.phieta2pixel(self.domain[:,1])).astype(float)
+    self.towers = []
     valid_algorithms = ['uniform', 'gaussian', 'dipole', 'j3']
     if recon_algo not in valid_algorithms:
       raise ValueError('%s is not a valid algorithm. Choose from %s' % (recon_algo, valid_algorithms))
@@ -89,6 +90,12 @@ class Grid:
       return True
     else:
       return False
+
+  def add_tower_event(self, tower_event):
+    if not isinstance(tower_event, TowerEvent):
+      raise TypeError("You must use a TowerEvent object! You gave a %s object" % tower_event.__class__.__name__
+    for tower in tower_event:
+      self.add_tower(tower)
 
   def add_event(self, event):
     if not isinstance(event, Event):
@@ -239,18 +246,18 @@ class Jet:
     return self.trigger_energy > self.triggerThresh
 
 # to be grammatically correct, it should be Events' Towers
-class EventsTowers:
+class TowerEvents:
   def __init__(self, filename = ''):
     self.filename = filename
-    self.eventstowers   = []
+    self.events   = []
 
   def __read_root_file(self):
     # read in file into a numpy record array
-    self.eventstowers = rnp.root2rec(self.filename, 'minBias_14TeV_MU80_0/mytree')
+    self.events = rnp.root2rec(self.filename, 'minBias_14TeV_MU80_0/mytree')
 
   def load(self):
     self.__read_root_file()
-    self.eventstowers = [Towers(towers=towers) for towers in self.eventstowers]
+    self.events = [TowerEvent(event=[event[i] for i in range(204,210)]) for event in self.events]
 
   def __iter__(self):
     # initialize to start of list
@@ -260,52 +267,35 @@ class EventsTowers:
 
   def next(self):
     self.iter_index += 1
-    if self.iter_index == len(self.eventstowers):
+    if self.iter_index == len(self.events):
       raise StopIteration
-    return self.eventstowers[self.iter_index]
+    return self.events[self.iter_index]
 
   def __getitem__(self, index):
-    return self.eventstowers[index]
+    return self.events[index]
 
   def __str__(self):
-    return "EventsTowers object with %d Towers objects" % len(self.eventstowers)
+    return "TowerEvents object with %d TowerEvent objects" % len(self.events)
 
-class Towers:
-  def __init__(self, eventtowers = []):
+class TowerEvent:
+  def __init__(self, event = []):
     self.towers = []
-    # format generally comes as a tuple of 215 lists, each list
-    #    is filled by that property for all towers
+    # note that unlike David's data, it isn't a "tuple" of 215 items
     # holy mother of god, please do not blame me for the fact that
     #    I'm ignoring like 210 items in this list, we only want gTower info
-    for _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,_,_,_,_,_,_,\
-        _,_,_,_,\
-        gTowerE, gTowerNCells, gTowerEtaMin, gTowerEtaMax, gTowerPhiMin, gTowerPhiMax,\
-        _,_,_,_,_ in zip(*eventtowers):
+    for gTowerE, gTowerNCells, gTowerEtaMin, gTowerEtaMax, gTowerPhiMin, gTowerPhiMax in zip(*event):
       self.towers.append(Tower(E=gTowerE,\
-                               NCells=gTowerNCells,\
-                               EtaMin=gTowerEtaMin,\
-                               EtaMax=gTowerEtaMax,\
-                               PhiMin=gTowerPhiMin,\
-                               PhiMax=gTowerPhiMax))
+                               num_cells=gTowerNCells,\
+                               etaMin=gTowerEtaMin,\
+                               etaMax=gTowerEtaMax,\
+                               phiMin=gTowerPhiMin,\
+                               phiMax=gTowerPhiMax))
+
+    self.E = [tower.E for tower in self.towers]
+    self.phiMin = np.min([tower.phiMin for tower in self.towers])
+    self.etaMin = np.min([tower.etaMin for tower in self.towers])
+    self.phiMax = np.max([tower.phiMax for tower in self.towers])
+    self.etaMax = np.max([tower.etaMax for tower in self.towers])
 
   def __iter__(self):
     # initialize to start of list
@@ -315,22 +305,34 @@ class Towers:
 
   def next(self):
     self.iter_index += 1
-    if self.iter_index == len(self.jets):
+    if self.iter_index == len(self.towers):
       raise StopIteration
-    return self.jets[self.iter_index]
+    return self.towers[self.iter_index]
 
   def __getitem__(self, index):
-    return self.jets[index]
+    return self.towers[index]
 
   def __str__(self):
-    return "Event object with %d Jet objects" % len(self.jets)
-
-
+    return "TowerEvents object with %d TowerEvent objects\n\tphi: (%0.4f, %0.4f)\n\teta: (%0.4f, %0.4f)" % (len(self.towers), self.phiMin, self.phiMax, self.etaMin, self.etaMax)
 
 # to do -- fill this shit in
 class Tower:
-  def __init__(self, tower = ''):
-    for jetE, jetPt, jetM, jetEta, jetPhi, _, _, _, _, _ in zip(*event):
+  def __init__(self,\
+               E,\
+               num_cells,\
+               etaMin,\
+               etaMax,\
+               phiMin,\
+               phiMax):
+    self.E = E
+    self.num_cells = num_cells
+    self.etaMin = etaMin
+    self.etaMax = etaMax
+    self.phiMin = phiMin
+    self.phiMax = phiMax
+
+  def __str__(self):
+    return "Tower object:\n\tE: %0.4f (GeV)\n\tnum_cells: %d\n\tphi: (%0.4f,%0.4f) \td = %0.4f\n\teta: (%0.4f, %0.4f) \td = %0.4f" % (self.E, self.num_cells, self.phiMin, self.phiMax, self.phiMax - self.phiMin, self.etaMin, self.etaMax, self.etaMax - self.etaMin)
 
 class Events:
   def __init__(self, events = []):
