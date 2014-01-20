@@ -93,7 +93,7 @@ class Grid:
 
   def add_tower_event(self, tower_event):
     if not isinstance(tower_event, TowerEvent):
-      raise TypeError("You must use a TowerEvent object! You gave a %s object" % tower_event.__class__.__name__
+      raise TypeError("You must use a TowerEvent object! You gave a %s object" % tower_event.__class__.__name__)
     for tower in tower_event:
       self.add_tower(tower)
 
@@ -105,9 +105,23 @@ class Grid:
 
   def add_tower(self, tower):
     if not isinstance(tower, Tower):
-      raise TypeError("You must use a Tower object! You gave us a %s object" % tower.__class__.__name__
+      raise TypeError("You must use a Tower object! You gave us a %s object" % tower.__class__.__name__)
     '''add a single `tower` to the current grid'''
-
+    minX, minY = self.phieta2pixel((tower.phiMin, tower.etaMin))
+    maxX, maxY = self.phieta2pixel((tower.phiMax, tower.etaMax))
+    print tower
+    print minX, maxX, minY, maxY
+    tower_mesh_coords = self.__rectangular_mesh( minX, maxX, minY, maxY )
+    uniform_towerdE = tower.E/(tower_mesh_coords.size/2.)
+    tower_mesh = ([tuple(pixel_coord), uniform_towerdE] for pixel_coord in tower_mesh_coords if self.boundary_conditions(pixel_coord) )
+    for pixel_coord, fractional_energy in tower_mesh:
+      try:
+        if pixel_coord[0] >= self.grid.shape[0]:
+          pixel_coord = (pixel_coord[0] - self.grid.shape[0], pixel_coord[1])
+        self.grid[pixel_coord] += fractional_energy
+      except IndexError:
+        print "\t"*2, tower
+        print "\t"*2, '-- tower pixel_coord could not be added:', pixel_coord
 
   def add_jet(self, jet):
     if not isinstance(jet, Jet):
@@ -159,10 +173,13 @@ class Grid:
       mesh = ([tuple(pixel_coord), self.__jetdPt(pixel_jetcoord, pixel_radius, jet_energy, pixel_coord)] for pixel_coord in square_mesh_coords if self.boundary_conditions(pixel_coord)&circularRegion(pixel_jetcoord, pixel_radius, pixel_coord) )
     return mesh
 
+  def __rectangular_mesh(self, minX, maxX, minY, maxY):
+    i,j = np.meshgrid( np.arange( minX, maxX), np.arange( minY, maxY) )
+    return np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int)
+
   def __square_mesh(self, center, radius):
     '''generates a square meshgrid of points for center and sidelength 2*radius'''
-    i,j = np.meshgrid( np.arange(center[0] - radius, center[0]+radius+1), np.arange(center[1] - radius, center[1]+radius+1) )
-    return np.transpose([i.reshape(-1), j.reshape(-1)]).astype(int)
+    return self.__rectangular_mesh(center[0] - radius, center[0] + radius + 1, center[1] - radius, center[1] + radius + 1)
 
   def __make_plot(self, title='Grid Plot'):
     '''Creates a figure of the current grid'''
