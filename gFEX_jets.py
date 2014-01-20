@@ -107,10 +107,11 @@ class Grid:
     if not isinstance(tower, Tower):
       raise TypeError("You must use a Tower object! You gave us a %s object" % tower.__class__.__name__)
     '''add a single `tower` to the current grid'''
+    #grab the boundaries of the rectangular region adding
     minX, minY = self.phieta2pixel((tower.phiMin, tower.etaMin))
     maxX, maxY = self.phieta2pixel((tower.phiMax, tower.etaMax))
-    print tower
-    print minX, maxX, minY, maxY
+
+    #build up the rectangular grid for the coordinates
     tower_mesh_coords = self.__rectangular_mesh( minX, maxX, minY, maxY )
     uniform_towerdE = tower.E/(tower_mesh_coords.size/2.)
     tower_mesh = ([tuple(pixel_coord), uniform_towerdE] for pixel_coord in tower_mesh_coords if self.boundary_conditions(pixel_coord) )
@@ -185,22 +186,23 @@ class Grid:
     '''Creates a figure of the current grid'''
     fig = pl.figure()
     # plot the grid
-    pl.imshow(self.grid.T, cmap = pl.cm.spectral)
+    pl.imshow(self.grid, cmap = pl.cm.spectral)
     # x-axis is phi, y-axis is eta
     xticks_loc = pl.axes().xaxis.get_majorticklocs()
     yticks_loc = pl.axes().yaxis.get_majorticklocs()
     # make labels
-    pl.xlabel('$\phi$')
-    pl.ylabel('$\eta$')
+    pl.xlabel('$\eta$')
+    pl.ylabel('$\phi$')
     pl.title(title)
     # transform labels from pixel coords to phi-eta coords
-    xticks_label = xticks_loc * self.pixel_resolution + self.domain[0,0]
-    yticks_label = yticks_loc * self.pixel_resolution + self.domain[1,0]
+    xticks_label = xticks_loc * self.pixel_resolution + self.domain[1,0]
+    yticks_label = yticks_loc * self.pixel_resolution + self.domain[0,0]
     pl.xticks(xticks_loc, xticks_label)
     pl.yticks(yticks_loc, yticks_label)
+    '''fuck the colorbar. it's very non-descriptive with a grid'''
     # set the colorbar
-    cbar = pl.colorbar(pad=0.2)
-    cbar.set_label('pT (GeV)')
+    #cbar = pl.colorbar(pad=0.2)
+    #cbar.set_label('pT (GeV)')
     return fig
 
   def show(self, title='Grid Plot'):
