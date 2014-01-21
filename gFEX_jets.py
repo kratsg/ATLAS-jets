@@ -186,23 +186,35 @@ class Grid:
     '''Creates a figure of the current grid'''
     fig = pl.figure()
     # plot the grid
-    pl.imshow(self.grid, cmap = pl.cm.spectral)
+    pl.imshow(self.grid*(0.2/self.pixel_resolution)**2., cmap = pl.cm.jet)
     # x-axis is phi, y-axis is eta
-    xticks_loc = pl.axes().xaxis.get_majorticklocs()
-    yticks_loc = pl.axes().yaxis.get_majorticklocs()
+    #xticks_loc = pl.axes().xaxis.get_majorticklocs()
+    #yticks_loc = pl.axes().yaxis.get_majorticklocs()
+    plotTopLeft  = self.phieta2pixel((-3.2,-4.5))
+    plotBotRight = self.phieta2pixel((3.2,4.5))
+    plot_resolution = 0.2*2
+    tickMarks = plot_resolution/self.pixel_resolution
+    xticks_loc = np.arange(plotTopLeft[1],plotBotRight[1] + 1,2*tickMarks)
+    yticks_loc = np.arange(plotTopLeft[0],plotBotRight[0] + 1,tickMarks)
     # make labels
     pl.xlabel('$\eta$')
     pl.ylabel('$\phi$')
     pl.title(title)
     # transform labels from pixel coords to phi-eta coords
-    xticks_label = xticks_loc * self.pixel_resolution + self.domain[1,0]
-    yticks_label = yticks_loc * self.pixel_resolution + self.domain[0,0]
+    #xticks_label = xticks_loc * self.pixel_resolution + self.domain[1,0]
+    #yticks_label = yticks_loc * self.pixel_resolution + self.domain[0,0]
+    xticks_label = ["%0.1f" % i for i in np.arange(-4.5,4.5 + 2*plot_resolution,2*plot_resolution)]
+    yticks_label = ["%0.1f" % i for i in np.arange(-3.2,3.2 + plot_resolution,plot_resolution)]
+    # add in 0 by hardcoding
+    #xticks_loc = np.append(xticks_loc,0)
+    #xticks_label = np.append(xticks_label,'0')
+    # set the labels
     pl.xticks(xticks_loc, xticks_label)
     pl.yticks(yticks_loc, yticks_label)
     '''fuck the colorbar. it's very non-descriptive with a grid'''
     # set the colorbar
-    #cbar = pl.colorbar(pad=0.2)
-    #cbar.set_label('pT (GeV)')
+    cbar = pl.colorbar(pad=0.2)
+    cbar.set_label('pT (GeV)')
     return fig
 
   def show(self, title='Grid Plot'):
