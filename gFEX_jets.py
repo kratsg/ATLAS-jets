@@ -113,7 +113,7 @@ class Grid:
 
     #build up the rectangular grid for the coordinates
     tower_mesh_coords = self.__rectangular_mesh( minX, maxX, minY, maxY )
-    uniform_towerdE = tower.E/(tower_mesh_coords.size/2.)
+    uniform_towerdE = tower.E#/(tower_mesh_coords.size/2.)
     tower_mesh = ([tuple(pixel_coord), uniform_towerdE] for pixel_coord in tower_mesh_coords if self.boundary_conditions(pixel_coord) )
     for pixel_coord, fractional_energy in tower_mesh:
       try:
@@ -186,7 +186,7 @@ class Grid:
     '''Creates a figure of the current grid'''
     fig = pl.figure()
     # plot the grid
-    pl.imshow(self.grid*(0.2/self.pixel_resolution)**2., cmap = pl.cm.jet)
+    pl.imshow(self.grid, cmap = pl.cm.jet)
     # x-axis is phi, y-axis is eta
     #xticks_loc = pl.axes().xaxis.get_majorticklocs()
     #yticks_loc = pl.axes().yaxis.get_majorticklocs()
@@ -333,6 +333,17 @@ class TowerEvent:
     self.etaMin = np.min([tower.etaMin for tower in self.towers])
     self.phiMax = np.max([tower.phiMax for tower in self.towers])
     self.etaMax = np.max([tower.etaMax for tower in self.towers])
+    self.seed_filter = None
+
+  def set_seed_filter(self, seed_filter):
+    if not isinstance(seed_filter, SeedFilter):
+      raise TypeError("You must use a SeedFilter object! You gave us a %s object" % seed_filter.__class__.__name__)
+    self.seed_filter = seed_filter
+
+  def filter(self):
+    if not self.seed_filter:
+      raise ValueError("You must set a filter with self.seed_filter(*SeedFilter).")
+    return self.seed_filter(self.towers)
 
   def __iter__(self):
     # initialize to start of list
@@ -370,6 +381,20 @@ class Tower:
 
   def __str__(self):
     return "Tower object:\n\tE: %0.4f (GeV)\n\tnum_cells: %d\n\tphi: (%0.4f,%0.4f) \td = %0.4f\n\teta: (%0.4f, %0.4f) \td = %0.4f" % (self.E, self.num_cells, self.phiMin, self.phiMax, self.phiMax - self.phiMin, self.etaMin, self.etaMax, self.etaMax - self.etaMin)
+
+class SeedFilter:
+  def __init__(self, ETthresh = 0, numSeeds = 1.0e5):
+    self.ETthresh = ETthresh
+    self.numSeeds = int(numSeeds)
+
+  def filter(self, seeds):
+    return [seed for seed in seeds if seed.E > self.ETthresh][:self.numSeeds]
+
+  def __call__(self, seeds):
+    return self.filter(seeds)
+
+  def __str__(self):
+    return "SeedFilter object returning at most %d seeds > %0.4f GeV" % (self.numSeeds, self.ETthresh)
 
 class Events:
   def __init__(self, events = []):
