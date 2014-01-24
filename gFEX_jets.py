@@ -2,6 +2,8 @@
 
 #ROOT is needed to deal with rootfiles
 import ROOT
+#import TLorentzVector to do a vector-sum
+from ROOT import TLorentzVector
 
 #root_numpy is needed to read the rootfile
 import root_numpy as rnp
@@ -190,8 +192,8 @@ class Grid:
     # x-axis is phi, y-axis is eta
     #xticks_loc = pl.axes().xaxis.get_majorticklocs()
     #yticks_loc = pl.axes().yaxis.get_majorticklocs()
-    plotTopLeft  = self.phieta2pixel((-3.2,-4.5))
-    plotBotRight = self.phieta2pixel((3.2,4.5))
+    plotTopLeft  = self.phieta2pixel((-3.2,-4.9))
+    plotBotRight = self.phieta2pixel((3.2,4.9))
     plot_resolution = 0.2*2
     tickMarks = plot_resolution/self.pixel_resolution
     xticks_loc = np.arange(plotTopLeft[1],plotBotRight[1] + 1,2*tickMarks)
@@ -203,7 +205,7 @@ class Grid:
     # transform labels from pixel coords to phi-eta coords
     #xticks_label = xticks_loc * self.pixel_resolution + self.domain[1,0]
     #yticks_label = yticks_loc * self.pixel_resolution + self.domain[0,0]
-    xticks_label = ["%0.1f" % i for i in np.arange(-4.5,4.5 + 2*plot_resolution,2*plot_resolution)]
+    xticks_label = ["%0.1f" % i for i in np.arange(-4.9,4.9 + 2*plot_resolution,2*plot_resolution)]
     yticks_label = ["%0.1f" % i for i in np.arange(-3.2,3.2 + plot_resolution,plot_resolution)]
     # add in 0 by hardcoding
     #xticks_loc = np.append(xticks_loc,0)
@@ -230,16 +232,27 @@ class Grid:
   def __str__(self):
     return "Grid object:\n\tPhi: %s\n\tEta: %s\n\tResolution: %0.2f" % (self.domain[0], self.domain[1], self.pixel_resolution)
 
+class SeedFilter:
+  def __init__(self, ETthresh = 0, numSeeds = 1.0e5):
+    self.ETthresh = ETthresh
+    self.numSeeds = int(numSeeds)
+
+  def filter(self, seeds):
+    return [seed for seed in seeds if seed.E > self.ETthresh][:self.numSeeds]
+
+  def __call__(self, seeds):
+    return self.filter(seeds)
+
+  def __str__(self):
+    return "SeedFilter object returning at most %d seeds > %0.4f GeV" % (self.numSeeds, self.ETthresh)
 
 class Jet:
   def __init__(self,\
                inputThresh    = 200.,\
                triggerThresh  = 150.,\
-               E              = 0.0,\
-               pT             = 0.0,\
-               m              = 0.0,\
                eta            = 0.0,\
                phi            = 0.0,\
+               TLorentzVector = TLorentzVector(),\
                radius         = 1.0,\
                input_energy   = 0.0,\
                trigger_energy = 0.0):
@@ -263,14 +276,17 @@ class Jet:
     """
     self.inputThresh    = np.float(inputThresh)
     self.triggerThresh  = np.float(triggerThresh)
-    self.E              = np.float(E)
-    self.pT             = np.float(pT)
-    self.m              = np.float(m)
     self.phi            = np.float(phi)
     self.eta            = np.float(eta)
     self.coord          = (self.phi, self.eta)
+    self.TLorentzVector = TLorentzVector
+    # setting up basic details from vector
+    self.E = self.TLorentzVector.E()
+    self.pT = self.TLorentzVector.Pt()
+    self.m = self.TLorentzVector.M()
+    # setting up jet details
     self.radius         = np.float(radius)
-    self.input_energy   = np.float(pT)
+    self.input_energy   = np.float(self.pT)
     self.trigger_energy = np.float(trigger_energy)
 
   def __str__(self):
@@ -284,9 +300,10 @@ class Jet:
 
 # to be grammatically correct, it should be Events' Towers
 class TowerEvents:
-  def __init__(self, filename = ''):
-    self.filename = filename
-    self.events   = []
+  def __init__(self, filename = '', seed_filter = SeedFilter()):
+    self.filename    = filename
+    self.events      = []
+    self.seed_filter = seed_filter
 
   def __read_root_file(self):
     # read in file into a numpy record array
@@ -294,7 +311,7 @@ class TowerEvents:
 
   def load(self):
     self.__read_root_file()
-    self.events = [TowerEvent(event=[event[i] for i in range(204,210)]) for event in self.events]
+    self.events = [TowerEvent(event=[event[i] for i in range(204,210)], seed_filter=self.seed_filter) for event in self.events]
 
   def __iter__(self):
     # initialize to start of list
@@ -315,8 +332,9 @@ class TowerEvents:
     return "TowerEvents object with %d TowerEvent objects" % len(self.events)
 
 class TowerEvent:
-  def __init__(self, event = []):
+  def __init__(self, event = [], seed_filter = SeedFilter()):
     self.towers = []
+    self.seed_filter = seed_filter
     # note that unlike David's data, it isn't a "tuple" of 215 items
     # holy mother of god, please do not blame me for the fact that
     #    I'm ignoring like 210 items in this list, we only want gTower info
@@ -333,17 +351,36 @@ class TowerEvent:
     self.etaMin = np.min([tower.etaMin for tower in self.towers])
     self.phiMax = np.max([tower.phiMax for tower in self.towers])
     self.etaMax = np.max([tower.etaMax for tower in self.towers])
-    self.seed_filter = None
 
   def set_seed_filter(self, seed_filter):
     if not isinstance(seed_filter, SeedFilter):
       raise TypeError("You must use a SeedFilter object! You gave us a %s object" % seed_filter.__class__.__name__)
     self.seed_filter = seed_filter
 
-  def filter(self):
+  def filter_towers(self):
     if not self.seed_filter:
       raise ValueError("You must set a filter with self.seed_filter(*SeedFilter).")
     return self.seed_filter(self.towers)
+
+  def get_event(self):
+    self.__seeds_to_jet()
+    return self.event
+
+  def __seeds_to_jet(self):
+    jets = []
+    for seed in self.filter_towers():
+      jets.append(self.__seed_to_jet(seed))
+    self.event = Event(jets=jets)
+
+  def __seed_to_jet(self, seed):
+    # note: each tower has m=0, so E = p, ET = pT
+    l = seed.TLorentzVector
+    for tower in self.__towers_around(seed):
+      l += tower.TLorentzVector
+    return Jet(eta=seed.eta, phi=seed.phi, TLorentzVector = l)
+
+  def __towers_around(self, seed, radius=1.0):
+    return [tower for tower in self.towers if np.sqrt((tower.phi - seed.phi)**2. + (tower.eta - seed.eta)**2.) <= radius]
 
   def __iter__(self):
     # initialize to start of list
@@ -378,23 +415,16 @@ class Tower:
     self.etaMax = etaMax
     self.phiMin = phiMin
     self.phiMax = phiMax
+    # set the center of the tower to the geometric center
+    self.eta = (self.etaMax + self.etaMin)/2.0
+    self.phi = (self.phiMax + self.phiMin)/2.0
+    # generate a TLorentzVector to handle additions
+    #   note: m = 0 for towers, so E = p --> ET = pT
+    self.TLorentzVector = TLorentzVector()
+    self.TLorentzVector.SetPtEtaPhiM(self.E/np.cosh(self.eta), self.eta, self.phi, 0.0)
 
   def __str__(self):
     return "Tower object:\n\tE: %0.4f (GeV)\n\tnum_cells: %d\n\tphi: (%0.4f,%0.4f) \td = %0.4f\n\teta: (%0.4f, %0.4f) \td = %0.4f" % (self.E, self.num_cells, self.phiMin, self.phiMax, self.phiMax - self.phiMin, self.etaMin, self.etaMax, self.etaMax - self.etaMin)
-
-class SeedFilter:
-  def __init__(self, ETthresh = 0, numSeeds = 1.0e5):
-    self.ETthresh = ETthresh
-    self.numSeeds = int(numSeeds)
-
-  def filter(self, seeds):
-    return [seed for seed in seeds if seed.E > self.ETthresh][:self.numSeeds]
-
-  def __call__(self, seeds):
-    return self.filter(seeds)
-
-  def __str__(self):
-    return "SeedFilter object returning at most %d seeds > %0.4f GeV" % (self.numSeeds, self.ETthresh)
 
 class Events:
   def __init__(self, events = []):
@@ -419,17 +449,8 @@ class Events:
     return "Events object with %d Event objects" % len(self.events)
  
 class Event:
-  def __init__(self, event = []):
-    self.jets = []
-    # format generally comes as a tuple of 10 lists, each list
-    #    is filled by that property for all jets like so
-    #  ( [ jetE_0, jetE_1, jetE_2], [ jetPt_0, jetPt_1, jetPt_2 ], ...)
-    for jetE, jetPt, jetM, jetEta, jetPhi, _, _, _, _, _ in zip(*event):
-      self.jets.append(Jet(E=jetE,\
-                           pT=jetPt,\
-                           m=jetM,\
-                           eta=jetEta,\
-                           phi=jetPhi))
+  def __init__(self, jets = []):
+    self.jets = jets
 
   def __iter__(self):
     # initialize to start of list
