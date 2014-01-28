@@ -115,7 +115,7 @@ class Grid:
 
     #build up the rectangular grid for the coordinates
     tower_mesh_coords = self.__rectangular_mesh( minX, maxX, minY, maxY )
-    uniform_towerdE = tower.E#/(tower_mesh_coords.size/2.)
+    uniform_towerdE = tower.pT
     tower_mesh = ([tuple(pixel_coord), uniform_towerdE] for pixel_coord in tower_mesh_coords if self.boundary_conditions(pixel_coord) )
     for pixel_coord, fractional_energy in tower_mesh:
       try:
@@ -156,7 +156,8 @@ class Grid:
     '''return the 2D gaussian(mu, sigma) evaluated at coord'''
     # normalization factor, 500 GeV outputs 476.275
     # default is 2 * pi * sx * sy * amplitude
-    normalization = 2. * np.pi * pixel_radius**2. * erf( 0.92 * (2.**-0.5) )**2.
+    # fix scaling for plots
+    normalization = 2. * np.pi * erf( 0.92 * (2.**-0.5) )**2.#* pixel_radius**2.
     exponential = np.exp(-( (pixel_mu[0] - pixel_coord[0])**2./(2. * (pixel_radius**2.)) + (pixel_mu[1] - pixel_coord[1])**2./(2.*(pixel_radius**2.)) ))
     return amplitude*exponential/normalization
 
@@ -170,7 +171,7 @@ class Grid:
     # always start with a square mesh
     square_mesh_coords = self.__square_mesh(pixel_jetcoord, pixel_radius)
     if self.recon_algo == 'uniform':
-      uniform_jetdPt = jet_energy/(square_mesh_coords.size/2.)
+      uniform_jetdPt = jet_energy#/(square_mesh_coords.size/2.)
       mesh = ([tuple(pixel_coord), uniform_jetdPt] for pixel_coord in square_mesh_coords if self.boundary_conditions(pixel_coord) )
     elif self.recon_algo == 'gaussian':
       mesh = ([tuple(pixel_coord), self.__jetdPt(pixel_jetcoord, pixel_radius, jet_energy, pixel_coord)] for pixel_coord in square_mesh_coords if self.boundary_conditions(pixel_coord)&circularRegion(pixel_jetcoord, pixel_radius, pixel_coord) )
@@ -184,7 +185,7 @@ class Grid:
     '''generates a square meshgrid of points for center and sidelength 2*radius'''
     return self.__rectangular_mesh(center[0] - radius, center[0] + radius + 1, center[1] - radius, center[1] + radius + 1)
 
-  def __make_plot(self, title='Grid Plot'):
+  def __make_plot(self, title='Grid Plot', colzLabel = '$E_T$'):
     '''Creates a figure of the current grid'''
     fig = pl.figure()
     # plot the grid
@@ -216,18 +217,19 @@ class Grid:
     '''fuck the colorbar. it's very non-descriptive with a grid'''
     # set the colorbar
     cbar = pl.colorbar(pad=0.2)
-    cbar.set_label('pT (GeV)')
+    cbar.set_label('%s [GeV]' % colzLabel)
     return fig
 
-  def show(self, title='Grid Plot'):
+  def show(self, title='Grid Plot', colzLabel = '$E_T$'):
     '''Show an image of the current grid'''
-    fig = self.__make_plot(title)
+    fig = self.__make_plot(title, colzLabel)
     fig.show()
 
-  def save(self, title='Grid Plot', filename='output.png'):
+  def save(self, title='Grid Plot', filename='output.png', colzLabel = '$E_T$'):
     '''Save an image of the current grid to file'''
-    fig = self.__make_plot(title)
+    fig = self.__make_plot(title, colzLabel)
     fig.savefig(filename)
+    fig.clf()
 
   def __str__(self):
     return "Grid object:\n\tPhi: %s\n\tEta: %s\n\tResolution: %0.2f" % (self.domain[0], self.domain[1], self.pixel_resolution)
@@ -376,7 +378,12 @@ class TowerEvent:
     # note: each tower has m=0, so E = p, ET = pT
     l = seed.TLorentzVector
     for tower in self.__towers_around(seed):
-      l += tower.TLorentzVector
+      radius = 1.0
+      normalization = 2. * np.pi * radius**2. * erf( 0.92 * (2.**-0.5) )**2.
+      exponential = np.exp(-( (seed.phi - tower.phi)**2./(2. * (radius**2.)) + (seed.eta - tower.eta)**2./(2.*(radius**2.)) ))
+      towerTLorentzVector = TLorentzVector()
+      towerTLorentzVector.SetPtEtaPhiM(tower.E/np.cosh(tower.eta) * normalization/exponential, tower.eta, tower.phi, 0.0)
+      l += towerTLorentzVector
     return Jet(eta=seed.eta, phi=seed.phi, TLorentzVector = l)
 
   def __towers_around(self, seed, radius=1.0):
@@ -418,10 +425,12 @@ class Tower:
     # set the center of the tower to the geometric center
     self.eta = (self.etaMax + self.etaMin)/2.0
     self.phi = (self.phiMax + self.phiMin)/2.0
+    # calculate pT
+    self.pT = self.E/np.cosh(self.eta)
     # generate a TLorentzVector to handle additions
     #   note: m = 0 for towers, so E = p --> ET = pT
     self.TLorentzVector = TLorentzVector()
-    self.TLorentzVector.SetPtEtaPhiM(self.E/np.cosh(self.eta), self.eta, self.phi, 0.0)
+    self.TLorentzVector.SetPtEtaPhiM(self.pT, self.eta, self.phi, 0.0)
 
   def __str__(self):
     return "Tower object:\n\tE: %0.4f (GeV)\n\tnum_cells: %d\n\tphi: (%0.4f,%0.4f) \td = %0.4f\n\teta: (%0.4f, %0.4f) \td = %0.4f" % (self.E, self.num_cells, self.phiMin, self.phiMax, self.phiMax - self.phiMin, self.etaMin, self.etaMax, self.etaMax - self.etaMin)
