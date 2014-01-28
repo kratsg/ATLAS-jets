@@ -224,12 +224,13 @@ class Grid:
     '''Show an image of the current grid'''
     fig = self.__make_plot(title, colzLabel)
     fig.show()
+    pl.close(fig)
 
   def save(self, title='Grid Plot', filename='output.png', colzLabel = '$E_T$'):
     '''Save an image of the current grid to file'''
     fig = self.__make_plot(title, colzLabel)
     fig.savefig(filename)
-    fig.close()
+    pl.close(fig)
 
   def __str__(self):
     return "Grid object:\n\tPhi: %s\n\tEta: %s\n\tResolution: %0.2f" % (self.domain[0], self.domain[1], self.pixel_resolution)
@@ -289,7 +290,7 @@ class Jet:
     # setting up jet details
     self.radius         = np.float(radius)
     self.input_energy   = np.float(self.pT)
-    self.trigger_energy = np.float(trigger_energy)
+    self.trigger_energy = np.float(self.pT)
 
   def __str__(self):
     return "Jet object:\n\tPhi: %0.4f\n\tEta: %0.4f\n\tE: %0.2f (GeV)\n\tpT: %0.2f (GeV)\n\tm: %0.2f (GeV)\n\tInputted: %s\n\tTriggered: %s" % (self.phi, self.eta, self.E, self.pT, self.m, self.inputted(), self.triggered())
@@ -462,6 +463,7 @@ class Events:
 class Event:
   def __init__(self, jets = []):
     self.jets = jets
+    self.jets.sort(key=lambda jet: jet.pT, reverse=True)
 
   def __iter__(self):
     # initialize to start of list
@@ -484,11 +486,11 @@ class Event:
 class Analysis:
   def __init__(self, events = [], num_bins = 50):
     self.events = events
-    self.num_bins = 50
+    self.num_bins = num_bins
 
   def Efficiency(self):
-    input_jets = np.array([jet.pT for event in self.events for jet in [event[0], event[1]] if jet.inputted()])
-    trigger_jets = np.array([jet.pT for event in self.events for jet in [event[0], event[1]] if jet.triggered()])
+    input_jets = np.array([jet.pT for event in self.events for jet in event[:2]])
+    trigger_jets = np.array([jet.pT for event in self.events for jet in event[:2] if jet.triggered()])
 
     bin_range = (input_jets.min(), input_jets.max())
     histogram_input = np.histogram(input_jets, range=bin_range, bins=self.num_bins)
