@@ -302,14 +302,15 @@ class Jet:
 
 # to be grammatically correct, it should be Events' Towers
 class TowerEvents:
-  def __init__(self, filename = '', seed_filter = SeedFilter()):
+  def __init__(self, filename = '', directory = '', seed_filter = SeedFilter()):
     self.filename    = filename
+    self.directory   = directory
     self.events      = []
     self.seed_filter = seed_filter
 
   def __read_root_file(self):
     # read in file into a numpy record array
-    self.events = rnp.root2rec(self.filename, 'minBias_14TeV_MU80_0/mytree')
+    self.events = rnp.root2rec(self.filename, '%smytree' % self.directory)
 
   def load(self):
     self.__read_root_file()

@@ -1,6 +1,7 @@
 from gFEX_jets import *
-filename = '/Users/kratsg/Dropbox/UChicagoSchool/DavidMiller/Data/PileupSkim.root'
-tEvents = TowerEvents(filename=filename, seed_filter=SeedFilter(ETthresh=20.0))
+filename = '/Users/kratsg/Dropbox/UChicagoSchool/DavidMiller/Data/PileupSkim_TTbar_14TeV_MU80.root'
+directory = 'TTbar_14TeV_MU80/'
+tEvents = TowerEvents(filename=filename, directory=directory, seed_filter=SeedFilter(ETthresh=20.0))
 tEvents.load()
 
 print 'Loaded and built all objects for gTowers data'
