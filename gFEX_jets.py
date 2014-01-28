@@ -314,7 +314,8 @@ class TowerEvents:
 
   def load(self):
     self.__read_root_file()
-    self.events = [TowerEvent(event=[event[i] for i in range(204,210)], seed_filter=self.seed_filter) for event in self.events]
+    indices = [self.events.dtype.names.index(name) for name in events.dtype.names if 'gTower' in name]
+    self.events = [TowerEvent(event=[event[i] for i in indices], seed_filter=self.seed_filter) for event in self.events]
 
   def __iter__(self):
     # initialize to start of list
