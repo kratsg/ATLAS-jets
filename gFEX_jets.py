@@ -229,7 +229,7 @@ class Grid:
     '''Save an image of the current grid to file'''
     fig = self.__make_plot(title, colzLabel)
     fig.savefig(filename)
-    fig.clf()
+    fig.close()
 
   def __str__(self):
     return "Grid object:\n\tPhi: %s\n\tEta: %s\n\tResolution: %0.2f" % (self.domain[0], self.domain[1], self.pixel_resolution)
