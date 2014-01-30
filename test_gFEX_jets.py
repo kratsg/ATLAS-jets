@@ -12,30 +12,45 @@ num = 0
 domain = np.array([[-3.2,3.2],[-4.9,4.9]])
 
 i = 0
-bins = 100
-cumul_sum = np.zeros(bins)
+num_bins = 100
+cumul_sum = np.zeros(num_bins).astype(int)
+# computing maxET (needed for consistent binning)
+maxET = np.max([np.max([tower.E/np.cosh(tower.eta) for tower in towers]) for towers in tEvents])
+maxET += 0.1 #this is so we can fix binning issues
+bin_edges = np.arange(0.0, maxET + maxET/num_bins, maxET/num_bins)
+
 for tower_event in tEvents:
   #this goes ahead and makes histograms of the ET distro of the towers for each event
-  pl.figure()
+  #pl.figure()
   ETs = [tower.E/np.cosh(tower.eta) for tower in tower_event.towers]
-  pl.hist(ETs, bins=bins)
-  pl.xlabel('$E_T^{\mathrm{tower}}$ [GeV]')
-  pl.ylabel('Number of gTowers')
-  i += 1
-  pl.title('Histogram of $E_T^{\mathrm{tower}}$ for Event #%d, %d towers' % (i, len(tower_event.towers)))
-  pl.savefig('event_%d_histogram.png' % i)
-  pl.close()
+  #pl.hist(ETs, bins=bins)
+  #pl.xlabel('$E_T^{\mathrm{tower}}$ [GeV]')
+  #pl.ylabel('Number of gTowers')
+  #i += 1
+  #pl.title('Histogram of $E_T^{\mathrm{tower}}$ for Event #%d, %d towers' % (i, len(tower_event.towers)))
+  #pl.savefig('event_%d_histogram.png' % i)
+  #pl.close()
   #now we want the histogram of towerThresholds, so we need to count # towers above a certain threshold of ET
-  hist, bin_edges = np.histogram(ETs, bins=bins)
-  cumul_sum += np.sum(hist) - np.cumsum(hist)
+  hist, _ = np.histogram(ETs, bins=bin_edges)
+  cumul_sum += np.cumsum(hist[::-1])[::-1]
 
+#get width of each bar based on domain/num_bins
+width=(bin_edges[-1] - bin_edges[0])/(num_bins+5.)
+#normalize distribution per Michael Begel
+cumul_sum = 1.0*cumul_sum/np.sum(cumul_sum)
+# plot it all
 pl.figure()
 pl.xlabel('$E_T^{\mathrm{threshold}}$ [GeV]')
 pl.ylabel('Number of gTowers')
 pl.title('Number of gTowers above $E_T^{\mathrm{threshold}}$')
-pl.bar(bin_edges[:-1], cumul_sum, width=0.25)
+pl.bar(bin_edges[:-1], cumul_sum, width=width, log=True)
+#pl.xscale('log')
+#pl.yscale - need to use log=True argument in pyplot.bar (see documentation)
 pl.savefig('events_threshold_histogram.png')
 pl.close()
+
+print "DONE WITH HISTOGRAMS"
+raise SystemExit
 
 #this goes through and plots each event using the towers
 for tower_event in tEvents:
