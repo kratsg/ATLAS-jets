@@ -1,5 +1,7 @@
-from root_jets import *
-filename = '/Users/kratsg/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
+from atlas_jets import *
+filename = '/Users/kratsg/Dropbox/UChicagoSchool/DavidMiller/Data/PileupSkim_TTbar_14TeV_MU80.root'
+directory = 'TTbar_14TeV_MU80/'
+tree = 'mytree'
 
 from multiprocessing import Process, Queue, cpu_count
 
@@ -21,12 +23,12 @@ class Consumer(Process):
     return
 
 class Task(object):
-  def __init__(self, event):
-    self.event = event
+  def __init__(self, oEvent):
+    self.oEvent = oEvent
   def __call__(self):
-    grid = Grid(pixel_resolution=0.2)
-    grid.add_event(self.event)
-    return self.event
+    grid = OfflineJets.Grid(pixel_resolution=0.2)
+    grid.add_event(self.oEvent)
+    return self.oEvent
   def __str__(self):
     pass
 
@@ -34,10 +36,9 @@ class Task(object):
 #     see python docs style guide for particular reasons, I'm just bullshitting
 #       but we really do need this
 if __name__ == '__main__':
-  # load up the events
-  events = Events(filename=filename)
-  events.load()
-  processed_events = []
+
+  oEvents = OfflineJets.Events(rootfile)
+  processed_oEvents = []
 
   # Establish communication queues
   tasks, results = Queue(), Queue()
@@ -46,8 +47,8 @@ if __name__ == '__main__':
   num_consumers = cpu_count()
   num_tasks = 0
   consumers = [ Consumer(tasks, results) for i in range(num_consumers) ]
-  for event in events:
-    tasks.put(Task(event))
+  for oEvent in oEvents:
+    tasks.put(Task(oEvent))
     num_tasks += 1
 
   # poison pill to stop processing
@@ -60,9 +61,9 @@ if __name__ == '__main__':
 
   # wait for all tasks to complete
   while num_tasks:
-    processed_events.append(results.get())#this should be blocking
+    processed_oEvents.append(results.get())#this should be blocking
     num_tasks -= 1
 
   # at this point, processed_events is the events array that contains calculated events with no issue
-  analysis = Analysis(processed_events)
+  analysis = Analysis(offline_events = processed_oEvents)
   analysis.Efficiency()
