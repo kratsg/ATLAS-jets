@@ -303,20 +303,16 @@ class Jet:
 
 # to be grammatically correct, it should be Events' Towers
 class TowerEvents:
-  def __init__(self, filename = '', directory = '', seed_filter = SeedFilter()):
-    self.filename    = filename
-    self.directory   = directory
+  def __init__(self, rootfile, seed_filter = SeedFilter()):
+    self.rootfile    = rootfile
     self.events      = []
     self.seed_filter = seed_filter
-
-  def __read_root_file(self):
-    # read in file into a numpy record array
-    self.events = rnp.root2rec(self.filename, '%smytree' % self.directory)
+    self.load()
 
   def load(self):
-    self.__read_root_file()
-    indices = [self.events.dtype.names.index(name) for name in self.events.dtype.names if 'gTower' in name]
-    self.events = [TowerEvent(event=[event[i] for i in indices], seed_filter=self.seed_filter) for event in self.events]
+    indices = [self.rootfile.data.dtype.names.index(name) for name in self.rootfile.data.dtype.names if 'gTower' in name]
+    self.events = [TowerEvent(event=[event[i] for i in indices], seed_filter=self.seed_filter) for event in self.rootfile.data]
+    print 'Loaded gTower jets'
 
   def __iter__(self):
     # initialize to start of list
@@ -408,7 +404,7 @@ class TowerEvent:
     return self.towers[index]
 
   def __str__(self):
-    return "TowerEvents object with %d TowerEvent objects\n\tphi: (%0.4f, %0.4f)\n\teta: (%0.4f, %0.4f)" % (len(self.towers), self.phiMin, self.phiMax, self.etaMin, self.etaMax)
+    return "TowerEvent object with %d Tower objects\n\tphi: (%0.4f, %0.4f)\n\teta: (%0.4f, %0.4f)" % (len(self.towers), self.phiMin, self.phiMax, self.etaMin, self.etaMax)
 
 # to do -- fill this shit in
 class Tower:

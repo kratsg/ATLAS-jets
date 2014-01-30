@@ -238,17 +238,16 @@ class Jet:
     return self.trigger_energy > self.triggerThresh
 
 class Events:
-  def __init__(self, filename = ''):
-    self.filename = filename
+  def __init__(self, rootfile):
+    self.rootfile = rootfile
     self.events   = []
-
-  def __read_root_file(self):
-    # read in file into a numpy record array
-    self.events = rnp.root2rec(self.filename, 'jets')
+    self.load()
 
   def load(self):
-    self.__read_root_file()
-    self.events = [Event(event=event) for event in self.events]
+    # we want jet_AntiKt4LCTopo_ [E, pt, m, eta, phi] but not [n]
+    indices = [self.rootfile.data.dtype.names.index(name) for name in self.rootfile.data.dtype.names if 'jet_AntiKt4LCTopo_' in name][1:6]
+    self.events = [Event(event=[event[i] for i in indices]) for event in self.rootfile.data]
+    print 'Loaded offline events.'
 
   def __iter__(self):
     # initialize to start of list
@@ -274,12 +273,15 @@ class Event:
     # format generally comes as a tuple of 10 lists, each list
     #    is filled by that property for all jets like so
     #  ( [ jetE_0, jetE_1, jetE_2], [ jetPt_0, jetPt_1, jetPt_2 ], ...)
-    for jetE, jetPt, jetM, jetEta, jetPhi, _, _, _, _, _ in zip(*event):
-      self.jets.append(Jet(E=jetE,\
-                           pT=jetPt,\
-                           m=jetM,\
+    for jetE, jetPt, jetM, jetEta, jetPhi in zip(*event):
+      # don't forget to scale from [MeV] -> [GeV]
+      self.jets.append(Jet(E=jetE/1000.,\
+                           pT=jetPt/1000.,\
+                           m=jetM/1000.,\
                            eta=jetEta,\
                            phi=jetPhi))
+    self.jets.sort(key=lambda jet: jet.pT, reverse=True)
+
 
   def __iter__(self):
     # initialize to start of list
@@ -298,25 +300,3 @@ class Event:
 
   def __str__(self):
     return "Event object with %d Jet objects" % len(self.jets)
-
-class Analysis:
-  def __init__(self, events = [], num_bins = 50):
-    self.events = events
-    self.num_bins = 50
-
-  def Efficiency(self):
-    input_jets = np.array([jet.pT for event in self.events for jet in [event[0], event[1]] if jet.inputted()])
-    trigger_jets = np.array([jet.pT for event in self.events for jet in [event[0], event[1]] if jet.triggered()])
-
-    bin_range = (input_jets.min(), input_jets.max())
-    histogram_input = np.histogram(input_jets, range=bin_range, bins=self.num_bins)
-    histogram_trigger = np.histogram(trigger_jets, range=bin_range, bins=self.num_bins)
-    nonzero_bins = np.where(histogram_input[0] != 0)
-    efficiency = np.true_divide(histogram_trigger[0][nonzero_bins], histogram_input[0][nonzero_bins])
-
-    pl.figure()
-    pl.scatter(histogram_input[1][nonzero_bins], efficiency)
-    pl.xlabel('$\mathrm{p}_{\mathrm{T}}^{\mathrm{jet}}$ [GeV]')
-    pl.ylabel('Efficiency')
-    pl.title('Turn-on Plot')
-    pl.show()
