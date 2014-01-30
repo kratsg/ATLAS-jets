@@ -37,7 +37,7 @@ for tower_event in tEvents:
 #get width of each bar based on domain/num_bins
 width=(bin_edges[-1] - bin_edges[0])/(num_bins+5.)
 #normalize distribution per Michael Begel
-cumul_sum = 1.0*cumul_sum/np.sum(cumul_sum)
+cumul_sum = 1.0*cumul_sum/len(tEvents.events)
 # plot it all
 pl.figure()
 pl.xlabel('$E_T^{\mathrm{threshold}}$ [GeV]')
