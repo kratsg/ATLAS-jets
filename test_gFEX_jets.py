@@ -18,10 +18,18 @@ cumul_sum = np.zeros(num_bins).astype(int)
 maxET = np.max([np.max([tower.E/np.cosh(tower.eta) for tower in towers]) for towers in tEvents])
 maxET += 0.1 #this is so we can fix binning issues
 bin_edges = np.arange(0.0, maxET + maxET/num_bins, maxET/num_bins)
+num_events = 0
+pT_thresh = 1600.
 
 for tower_event in tEvents:
   #this goes ahead and makes histograms of the ET distro of the towers for each event
   #pl.figure()
+  try:
+    if tower_event.get_event().jets[0].pT < pT_thresh:
+      continue
+  except IndexError:
+    continue
+  num_events += 1
   ETs = [tower.E/np.cosh(tower.eta) for tower in tower_event.towers]
   #pl.hist(ETs, bins=bins)
   #pl.xlabel('$E_T^{\mathrm{tower}}$ [GeV]')
@@ -37,16 +45,16 @@ for tower_event in tEvents:
 #get width of each bar based on domain/num_bins
 width=(bin_edges[-1] - bin_edges[0])/(num_bins+5.)
 #normalize distribution per Michael Begel
-cumul_sum = 1.0*cumul_sum/len(tEvents.events)
+cumul_sum = 1.0*cumul_sum/num_events
 # plot it all
 pl.figure()
 pl.xlabel('$E_T^{\mathrm{threshold}}$ [GeV]')
 pl.ylabel('Number of gTowers')
-pl.title('Number of gTowers above $E_T^{\mathrm{threshold}}$')
+pl.title('Number of gTowers above $E_T^{\mathrm{threshold}}$ for $p_T^{\mathrm{jet}}$ > %d GeV' % pT_thresh)
 pl.bar(bin_edges[:-1], cumul_sum, width=width, log=True)
 #pl.xscale('log')
 #pl.yscale - need to use log=True argument in pyplot.bar (see documentation)
-pl.savefig('events_threshold_histogram.png')
+pl.savefig('events_threshold_histogram_jetSelection%d.png' % pT_thresh)
 pl.close()
 
 print "DONE WITH HISTOGRAMS"
