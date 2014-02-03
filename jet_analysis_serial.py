@@ -5,7 +5,7 @@ tree = 'mytree'
 
 oEvents = OfflineJets.Events(rootfile)
 
-grid = OfflineJets.Grid(pixel_resolution=0.2)
+grid = OfflineJets.Grid(cell_resolution=0.2)
 for oEvent in oEvents:
   grid.add_event(oEvent)
 
