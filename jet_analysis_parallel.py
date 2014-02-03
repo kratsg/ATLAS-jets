@@ -26,7 +26,7 @@ class Task(object):
   def __init__(self, oEvent):
     self.oEvent = oEvent
   def __call__(self):
-    grid = OfflineJets.Grid(pixel_resolution=0.2)
+    grid = OfflineJets.Grid(cell_resolution=0.2)
     grid.add_event(self.oEvent)
     return self.oEvent
   def __str__(self):

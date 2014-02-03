@@ -17,11 +17,11 @@ raise SystemExit
 #this goes through and plots each event using the towers
 for tEvent in tEvents:
   num += 1
-  grid_before = gTowers.Grid(pixel_resolution=0.01, domain=domain)
+  grid_before = gTowers.Grid(cell_resolution=0.01, domain=domain)
   grid_before.add_tower_event(tEvent)
   grid_before.save(title='Event %d, cell resolution=0.01' % num, filename='output_tower_%d.png' % num, colzLabel = '$E_T^{\mathrm{tower}}$')
 
-  grid_after = gTowers.Grid(pixel_resolution=0.01, recon_algo = 'gaussian', domain=domain)
+  grid_after = gTowers.Grid(cell_resolution=0.01, recon_algo = 'gaussian', domain=domain)
   grid_after.add_event(tEvent.get_event())
   grid_after.save(title='Event %d, cell resolution=0.01' % num, filename='output_event_%d.png' % num, colzLabel = '$p_T^{\mathrm{jet}}$')
 
