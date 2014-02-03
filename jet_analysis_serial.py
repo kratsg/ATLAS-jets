@@ -1,13 +1,14 @@
-from root_jets import *
-filename = '/Users/kratsg/Dropbox/UChicagoSchool/DavidMiller/Data/gFEXSlim_ttbar_zprime3000.root'
+from atlas_jets import *
+filename = '/Users/kratsg/Dropbox/UChicagoSchool/DavidMiller/Data/PileupSkim_TTbar_14TeV_MU80.root'
+directory = 'TTbar_14TeV_MU80/'
+tree = 'mytree'
 
-events = Events(filename=filename)
-events.load()
+oEvents = OfflineJets.Events(rootfile)
 
-grid = Grid(pixel_resolution=0.2)
-for event in events:
-  grid.add_event(event)
+grid = OfflineJets.Grid(pixel_resolution=0.2)
+for oEvent in oEvents:
+  grid.add_event(oEvent)
 
 # at this point, all of the events have been processed (including jets)
-analysis = Analysis(events)
+analysis = Analysis(offline_events = oEvents)
 analysis.Efficiency()
