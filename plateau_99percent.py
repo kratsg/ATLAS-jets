@@ -3,7 +3,7 @@ import ROOT
 import numpy as np
 import matplotlib.pyplot as pl
 import root_numpy as rnp
-import pickle
+import cPickle as pickle
 filename = '/Users/kratsg/Desktop/PileupSkim_TTbar_14TeV_MU80_10000.root' 
 directory = 'TTbar_14TeV_MU80'
 tree = 'mytree'
@@ -35,7 +35,10 @@ def match_jets(oJets=[], tJets=[]):
     matched_jets.append([oJet,closest_tJet])
   return np.array(matched_jets)
 
-def run_code(offline_jetpT_threshold = 0., gTower_jetET_threshold = 0., seed_ETthresh = 0.):
+bins_seedcut_99percent = []
+bins_seedcut_errors = []
+
+for seed_ETthresh in [5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0]:
   #set seed cuts
   seed_filter = gTowers.SeedFilter(ETthresh = seed_ETthresh, numSeeds = 1.0e5)
 
@@ -72,15 +75,10 @@ def run_code(offline_jetpT_threshold = 0., gTower_jetET_threshold = 0., seed_ETt
     # max number of seeds based on number of offline jets
     #seed_filter = gTowers.SeedFilter(numSeeds = len(oEvent.jets))
     tEvent = gTowers.TowerEvent(event=[data[col][0] for col in gTower_column_names], seed_filter = seed_filter)
-    # build up the first two histograms using just the gTower data
-    # note, we have np.histogram(...)[0] since we only need the hist data
-    tower_ETs = [tower.E/np.cosh(tower.eta) for tower in tEvent.towers]
-    hist_towerMultiplicity += np.cumsum(np.histogram(tower_ETs, bins=bins_towerMultiplicity)[0][::-1])[::-1] #this makes a reverse cumulative sum
-    hist_towerHistogram += np.histogram(tower_ETs, bins=bins_towerHistogram)[0]
 
-    tEvent.get_event()
-    #paired_jets = match_jets(oJets=oEvent.jets, tJets=tEvent.filter_towers())
-    paired_jets = match_jets(oJets=oEvent.jets, tJets=tEvent.event.jets)
+    #tEvent.get_event()
+    paired_jets = match_jets(oJets=oEvent.jets, tJets=tEvent.filter_towers())
+    #paired_jets = match_jets(oJets=oEvent.jets, tJets=tEvent.event.jets)
     paired_data = np.array([[oJet.pT, tJet.E/np.cosh(tJet.eta)] for oJet,tJet in paired_jets if oJet.pT > offline_jetpT_threshold])
     # build up the turn on curve histograms
     hist_efficiency_den += np.histogram(paired_data[:,0], bins=bins_efficiency)[0]
@@ -90,41 +88,9 @@ def run_code(offline_jetpT_threshold = 0., gTower_jetET_threshold = 0., seed_ETt
   '''at this point, we've processed all the data and we just need to make plots'''
 
   # first get the widths of the bins when we make the plots
-  width_towerMultiplicity = np.array([x - bins_towerMultiplicity[i-1] for i,x in enumerate(bins_towerMultiplicity)][1:])
-  width_towerHistogram    = np.array([x - bins_towerHistogram[i-1] for i,x in enumerate(bins_towerHistogram)][1:])
   width_efficiency        = np.array([x - bins_efficiency[i-1] for i,x in enumerate(bins_efficiency)][1:])
 
-  # rescale tower data to define it per event
-  hist_towerMultiplicity = 1.0*hist_towerMultiplicity/num_offlineEvents
-  hist_towerHistogram    = 1.0*hist_towerHistogram/num_offlineEvents
-
-  #histogram y-range
-  hist_ylim = (10.**-3., 10.**4.)
-
   filename_ending = 'offline%d_gTower%d_seed%d_unweighted' % (offline_jetpT_threshold, gTower_jetET_threshold, seed_filter.ETthresh)
-
-  #make figures
-  '''Tower Multiplicity'''
-  pl_tMult = pl.figure()
-  pl.xlabel('$E_T^{\mathrm{threshold}}$ [GeV]')
-  pl.ylabel('Number of gTowers per event')
-  pl.title('$p_T^{\mathrm{offline jet}}$ > %d GeV, %d events, $E_T^{\mathrm{tower jet}}$ > %d GeV, $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
-  pl.bar(bins_towerMultiplicity[:-1], hist_towerMultiplicity, width=width_towerMultiplicity, log=True)
-  pl.ylim(hist_ylim)
-  pickle.dump(pl_tMult, file('events_threshold_histogram_multiplicity_%s.pkl' % filename_ending, 'w+') )
-  pl.savefig('events_threshold_histogram_multiplicity_%s.png' % filename_ending)
-  pl.close()
-
-  '''Tower Histogram per Event'''
-  pl_tHist = pl.figure()
-  pl.xlabel('$p_T^{\mathrm{jet}}$ [GeV]')
-  pl.ylabel('Number of gTowers per event')
-  pl.title('$p_T^{\mathrm{offline jet}}$ > %d GeV, %d events, $E_T^{\mathrm{tower jet}}$ > %d GeV, $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
-  pl.bar(bins_towerHistogram[:-1], hist_towerHistogram, width=width_towerHistogram, log=True)
-  pl.ylim(hist_ylim)
-  pickle.dump(pl_tHist, file('events_threshold_histogram_towers_%s.pkl' % filename_ending, 'w+') )
-  pl.savefig('events_threshold_histogram_towers_%s.png' % filename_ending)
-  pl.close()
 
   xlim_efficiency = (0.0,1.0)
   ylim_efficiency = (0.0,1.0)
@@ -133,7 +99,7 @@ def run_code(offline_jetpT_threshold = 0., gTower_jetET_threshold = 0., seed_ETt
   pl_turnon_den = pl.figure()
   pl.xlabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Turn-On Curve Denominator')
-  pl.title('$p_T^{\mathrm{offline jet}}$ > %d GeV, %d events, $E_T^{\mathrm{tower jet}}$ > %d GeV, $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
+  pl.title('offline $p_T^{\mathrm{jet}}$ > %d GeV, %d events, gTower $E_T^{\mathrm{jet}}$ > %d GeV, gTower $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
   pl.bar(bins_efficiency[:-1], hist_efficiency_den, width=width_efficiency)
   xlim_efficiency = pl.xlim()
   xlim_efficiency = (0.0, xlim_efficiency[1])
@@ -148,7 +114,7 @@ def run_code(offline_jetpT_threshold = 0., gTower_jetET_threshold = 0., seed_ETt
   pl_turnon_num = pl.figure()
   pl.xlabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Turn-On Curve Numerator')
-  pl.title('$p_T^{\mathrm{offline jet}}$ > %d GeV, %d events, $E_T^{\mathrm{tower jet}}$ > %d GeV, $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
+  pl.title('offline $p_T^{\mathrm{jet}}$ > %d GeV, %d events, gTower $E_T^{\mathrm{jet}}$ > %d GeV, gTower $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
   pl.bar(bins_efficiency[:-1], hist_efficiency_num, width=width_efficiency)
   pl.xlim(xlim_efficiency)
   pl.ylim(ylim_efficiency)
@@ -186,7 +152,7 @@ def run_code(offline_jetpT_threshold = 0., gTower_jetET_threshold = 0., seed_ETt
   pl.figure()
   pl_eff_diff = pl.xlabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Trigger Efficiency - Differential')
-  pl.title('$p_T^{\mathrm{offline jet}}$ > %d GeV, %d events, $E_T^{\mathrm{tower jet}}$ > %d GeV, $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
+  pl.title('offline $p_T^{\mathrm{jet}}$ > %d GeV, %d events, gTower $E_T^{\mathrm{jet}}$ > %d GeV, gTower $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
   pl.errorbar(xpoints_efficiency[nonzero_bins], hist_efficiency_curve_differential, yerr=errors_efficiency_differential, ecolor='black')
   pl.xlim(xlim_efficiency)
   pl.ylim((0.0,1.2))
@@ -198,28 +164,29 @@ def run_code(offline_jetpT_threshold = 0., gTower_jetET_threshold = 0., seed_ETt
   pl_eff_int = pl.figure()
   pl.xlabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Trigger Efficiency - Integral')
-  pl.title('$p_T^{\mathrm{offline jet}}$ > %d GeV, %d events, $E_T^{\mathrm{tower jet}}$ > %d GeV, $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
+  pl.title('offline $p_T^{\mathrm{jet}}$ > %d GeV, %d events, gTower $E_T^{\mathrm{jet}}$ > %d GeV, gTower $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
   pl.errorbar(xpoints_efficiency[nonzero_bins], hist_efficiency_curve_integral, yerr=errors_efficiency_integral, ecolor='black')
   pl.xlim(xlim_efficiency)
   pl.ylim((0.0,1.2))
   pl.grid(True)
-  pickle.dump(pl_eff_int, file('events_turnon_curve_integral_%s.pkl' % filename_ending, 'w+') )
+  pickle.dump(pl_eff_int, file('events_turnon_curve_integral_%s.pkl' % filename_ending, 'w+'))
   pl.savefig('events_turnon_curve_integral_%s.png' % filename_ending)
   pl.close()
 
-class Copier(object):
-  def __init__(self):
-    pass
-  def __call__(self, args):
-    offline_jetpT_threshold, gTower_jetET_threshold, seed_ETthresh = args
-    run_code(offline_jetpT_threshold, gTower_jetET_threshold, seed_ETthresh)
+  xpoints_efficiency = xpoints_efficiency[nonzero_bins]
+  index_99percent = np.where(hist_efficiency_curve_differential >= 0.99)[0][0]
+  bins_around_99percent_eff = xpoints_efficiency[index_99percent-1:index_99percent+2]
+  bins_seedcut_99percent.append([ seed_ETthresh,bins_around_99percent_eff[1] ])
+  bins_seedcut_errors.append(bins_around_99percent_eff[2] - bins_around_99percent_eff[0])
 
-offline_jetpT_threshold = [50., 100., 150., 200.]
-gTower_jetET_threshold = [50., 100., 150., 200.]
-seed_ETthreshold = [35., 30., 25., 20., 15., 10.]
-jobs = [(a,b,c) for a in offline_jetpT_threshold for b in gTower_jetET_threshold for c in seed_ETthreshold]
-print jobs
+bins_seedcut_99percent = np.array(bins_seedcut_99percent)
+bins_seedcut_errors = np.array(bins_seedcut_errors)
+pl_plateau = pl.figure()
+pl.xlabel('gTower $E_T^{\mathrm{seed}}$ threshold [GeV]')
+pl.ylabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
+pl.title('99% Plateau with offline $p_T^{\mathrm{jet}}$ > 0 GeV, gTower $E_T^{\mathrm{jet}}$ > 0 GeV')
+pl.plot(bins_seedcut_99percent[:,0], bins_seedcut_99percent[:,1], xerr=1.0, yerr=1./bins_seedcut_errors)
+pl.grid(True)
+pickle.dump(pl_plateau, file('events_plateau_99percent.pkl', 'w+'))
+pl.savefig('events_plateau_99percent.png')
 
-import multiprocessing
-p = multiprocessing.Pool(processes=6)
-p.map(Copier(), jobs)
