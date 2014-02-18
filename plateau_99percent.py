@@ -43,7 +43,7 @@ for seed_ETthresh in [5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0]:
   seed_filter = gTowers.SeedFilter(ETthresh = seed_ETthresh, numSeeds = 1.0e5)
 
   #column names to pull from the file, must be in this order to sync with the predefined classes in atlas_jets package
-  offline_column_names = ['jet_AntiKt4LCTopo_%s' % col for col in ['E', 'pt', 'm', 'eta', 'phi']]
+  offline_column_names = ['jet_AntiKt10LCTopo_%s' % col for col in ['E', 'pt', 'm', 'eta', 'phi']]
   gTower_column_names = ['gTower%s' % col for col in ['E', 'NCells', 'EtaMin', 'EtaMax', 'PhiMin', 'PhiMax']]
 
   #bins for all histograms
@@ -96,7 +96,7 @@ for seed_ETthresh in [5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0]:
   ylim_efficiency = (0.0,1.0)
 
   '''Turn on curves'''
-  pl_turnon_den = pl.figure()
+  pl.figure()
   pl.xlabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Turn-On Curve Denominator')
   pl.title('offline $p_T^{\mathrm{jet}}$ > %d GeV, %d events, gTower $E_T^{\mathrm{jet}}$ > %d GeV, gTower $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
@@ -107,17 +107,23 @@ for seed_ETthresh in [5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0]:
   ylim_efficiency = pl.ylim()
   ylim_efficiency = (0.0, ylim_efficiency[1])
   pl.ylim(ylim_efficiency)
+  pl_turnon_den = {'bins': bins_efficiency,\
+                   'values': hist_efficiency_den,\
+                   'width': width_efficiency}
   pickle.dump(pl_turnon_den, file('events_turnon_denominator_%s.pkl' % filename_ending, 'w+') )
   pl.savefig('events_turnon_denominator_%s.png' % filename_ending)
   pl.close()
 
-  pl_turnon_num = pl.figure()
+  pl.figure()
   pl.xlabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Turn-On Curve Numerator')
   pl.title('offline $p_T^{\mathrm{jet}}$ > %d GeV, %d events, gTower $E_T^{\mathrm{jet}}$ > %d GeV, gTower $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
   pl.bar(bins_efficiency[:-1], hist_efficiency_num, width=width_efficiency)
   pl.xlim(xlim_efficiency)
   pl.ylim(ylim_efficiency)
+  pl_turnon_num = {'bins': bins_efficiency,\
+                   'values': hist_efficiency_num,\
+                   'width': width_efficiency}
   pickle.dump(pl_turnon_num, file('events_turnon_numerator_%s.pkl' % filename_ending, 'w+') )
   pl.savefig('events_turnon_numerator_%s.png' % filename_ending)
   pl.close()
@@ -142,7 +148,7 @@ for seed_ETthresh in [5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0]:
       if w == 1.0:
         errors.append(0.0)
       else:
-        errors.append( (np.abs( (1.-2.*w + w**2.)/den**2.))**0.5 )
+        errors.append( (np.abs( (1.-2.*w + w**2.)/den))**0.5 )
     return errors
 
   #binomial errors s^2 = n * p * q
@@ -150,18 +156,26 @@ for seed_ETthresh in [5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0]:
   errors_efficiency_integral     = binomial_errors(hist_efficiency_curve_integral, np.cumsum(hist_efficiency_num[nonzero_bins][::-1])[::-1], np.cumsum(hist_efficiency_den[nonzero_bins][::-1])[::-1])
 
   pl.figure()
-  pl_eff_diff = pl.xlabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
+  pl.xlabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Trigger Efficiency - Differential')
   pl.title('offline $p_T^{\mathrm{jet}}$ > %d GeV, %d events, gTower $E_T^{\mathrm{jet}}$ > %d GeV, gTower $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
   pl.errorbar(xpoints_efficiency[nonzero_bins], hist_efficiency_curve_differential, yerr=errors_efficiency_differential, ecolor='black')
   pl.xlim(xlim_efficiency)
   pl.ylim((0.0,1.2))
   pl.grid(True)
+  pl_eff_diff = {'xdata': xpoints_efficiency,\
+                 'ydata': hist_efficiency_curve_differential,\
+                 'xerr' : 1.0,\
+                 'yerr' : errors_efficiency_differential,\
+                 'num'  : hist_efficiency_num,\
+                 'den'  : hist_efficiency_den,\
+                 'bins' : bins_efficiency,\
+                 'nonzero_bins': nonzero_bins}
   pickle.dump(pl_eff_diff, file('events_turnon_curve_differential_%s.pkl' % filename_ending, 'w+') )
   pl.savefig('events_turnon_curve_differential_%s.png' % filename_ending)
   pl.close()
 
-  pl_eff_int = pl.figure()
+  pl.figure()
   pl.xlabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Trigger Efficiency - Integral')
   pl.title('offline $p_T^{\mathrm{jet}}$ > %d GeV, %d events, gTower $E_T^{\mathrm{jet}}$ > %d GeV, gTower $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
@@ -169,6 +183,14 @@ for seed_ETthresh in [5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0]:
   pl.xlim(xlim_efficiency)
   pl.ylim((0.0,1.2))
   pl.grid(True)
+  pl_eff_int = {'xdata': xpoints_efficiency,\
+                'ydata': hist_efficiency_curve_integral,\
+                'xerr' : 1.0,\
+                'yerr' : errors_efficiency_integral,\
+                'num'  : hist_efficiency_num,\
+                'den'  : hist_efficiency_den,\
+                'bins' : bins_efficiency,\
+                'nonzero_bins': nonzero_bins}
   pickle.dump(pl_eff_int, file('events_turnon_curve_integral_%s.pkl' % filename_ending, 'w+'))
   pl.savefig('events_turnon_curve_integral_%s.png' % filename_ending)
   pl.close()
@@ -181,11 +203,15 @@ for seed_ETthresh in [5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0]:
 
 bins_seedcut_99percent = np.array(bins_seedcut_99percent)
 bins_seedcut_errors = np.array(bins_seedcut_errors)
-pl_plateau = pl.figure()
+pl.figure()
 pl.xlabel('gTower $E_T^{\mathrm{seed}}$ threshold [GeV]')
 pl.ylabel('offline $p_T^{\mathrm{jet}}$ [GeV]')
 pl.title('99% Plateau with offline $p_T^{\mathrm{jet}}$ > 0 GeV, gTower $E_T^{\mathrm{jet}}$ > 0 GeV')
-pl.plot(bins_seedcut_99percent[:,0], bins_seedcut_99percent[:,1], xerr=1.0, yerr=1./bins_seedcut_errors)
+pl.errorbar(bins_seedcut_99percent[:,0], bins_seedcut_99percent[:,1], xerr=1.0, yerr=bins_seedcut_errors)
+pl_plateau = {'xdata': bins_seedcut_99percent[:,0],\
+              'ydata': bins_seedcut_99percent[:,1],\
+              'xerr' : 1.0,\
+              'yerr' : bins_seedcut_errors}
 pl.grid(True)
 pickle.dump(pl_plateau, file('events_plateau_99percent.pkl', 'w+'))
 pl.savefig('events_plateau_99percent.png')

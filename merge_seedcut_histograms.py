@@ -28,28 +28,24 @@ p = re.compile('^.*?_seed(\d+)_.*?\.pkl$')
 files = glob("events_histogram_leading_trigger_jets_offline0_gTower0_seed*.pkl")
 sort_nicely(files)
 for filename in files:
-  hist = pickle.load(file(filename))
+  data = pickle.load(file(filename))
   seed_filter_ETthresh = p.match(filename).groups()
   # load data
-  data = np.append(np.array([[0.,0.]]),np.array([i.get_bbox().get_points() for i in hist.gca().get_children() if i.__class__.__name__ == 'Rectangle'])[:-1,1],axis=0)
-  #nonzero_bins = np.where(data[:,1] != 0)
   histogram_data.append(data)
   seedcuts.append(p.match(filename).groups()[0])
   pl.close()
 
 pl.close()
 
-histogram_data = np.array(histogram_data)
-xlim = (0.0,np.max(histogram_data[np.where(histogram_data[:,:,1] > 0)][:,0]))
 colors = ['b','g','r','c','m','y','k','w']
 
 pl.figure(figsize=(25.0, 15.0))
 for hist,seedcut,color in zip(histogram_data, seedcuts, colors):
-  values = hist[:,0]
-  weights = hist[:,1]
-  #bins = hist[:,0]
+  values = hist['bins']
+  weights = hist['values']
+  #bins = hist['bins']
   bins = np.arange(0.0,4000.0,10.0)#hist[:,0]
-  pl.hist(values, bins=bins, weights=weights, histtype='bar', label='%s GeV' % seedcut, alpha=0.9, color=color)
+  pl.hist(values[:-1], bins=bins, weights=weights, histtype='bar', label='%s GeV' % seedcut, alpha=0.9, color=color)
 
 filename_ending = "-".join(seedcuts)
 

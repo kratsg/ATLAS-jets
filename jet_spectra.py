@@ -23,7 +23,7 @@ def run_code(offline_jetpT_threshold = 0., gTower_jetET_threshold = 0., seed_ETt
   leading_trigger_jets = []
 
   #column names to pull from the file, must be in this order to sync with the predefined classes in atlas_jets package
-  offline_column_names = ['jet_AntiKt4LCTopo_%s' % col for col in ['E', 'pt', 'm', 'eta', 'phi']]
+  offline_column_names = ['jet_AntiKt10LCTopo_%s' % col for col in ['E', 'pt', 'm', 'eta', 'phi']]
   gTower_column_names = ['gTower%s' % col for col in ['E', 'NCells', 'EtaMin', 'EtaMax', 'PhiMin', 'PhiMax']]
 
   #bins for all histograms
@@ -62,15 +62,17 @@ def run_code(offline_jetpT_threshold = 0., gTower_jetET_threshold = 0., seed_ETt
 
   #make figures
   '''Leading Trigger Jets Histogram'''
-  pl_lJet = pl.figure()
+  pl.figure()
   pl.xlabel('$E_T^{\mathrm{jet}}$ [GeV]')
   pl.ylabel('Number of leading trigger jets')
   pl.title('$p_T^{\mathrm{offline jet}}$ > %d GeV, %d events, $E_T^{\mathrm{tower jet}}$ > %d GeV, $E_T^{\mathrm{seed}}$ > %d GeV' % (offline_jetpT_threshold, num_offlineEvents, gTower_jetET_threshold, seed_filter.ETthresh))
   pl.bar(bins_leading_trigger_jets[:-1], hist_leading_trigger_jets, width=width_leading_trigger_jets)
+  pl_lJet = {'bins': bins_leading_trigger_jets,\
+             'values': hist_leading_trigger_jets,\
+             'width': width_leading_trigger_jets}
   pickle.dump(pl_lJet, file('events_histogram_leading_trigger_jets_%s.pkl' % filename_ending, 'w+') )
   pl.savefig('events_histogram_leading_trigger_jets_%s.png' % filename_ending)
   pl.close()
-
 
 class Copier(object):
   def __init__(self, offline_jetpT_threshold, gTower_jetET_threshold):
