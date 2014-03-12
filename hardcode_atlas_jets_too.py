@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as pl
 import root_numpy as rnp
 import pickle
-filename = 'root://faxbox.usatlas.org//user/kratsg/PileupSkim_TTbar_14TeV_MU80.root' 
+filename = '/Users/kratsg/Desktop/PileupSkim_TTbar_14TeV_MU80.root' 
 directory = 'TTbar_14TeV_MU80'
 tree = 'mytree'
 
@@ -53,6 +53,7 @@ def run_code(seed_ETthresh = 0.):
       print "doing event_num=%d for seed_Et: %d" % (event_num, seed_ETthresh)
     # pull in data row by row
     data = rnp.root2rec(filename, treename='%s/%s' % (directory,tree), branches=offline_column_names + gTower_column_names, start=(event_num), stop=(event_num+1))
+    print '\t%d: loaded data' % seed_ETthresh
     oEvent = OfflineJets.Event(event=[data[col][0] for col in offline_column_names])
 
     # if there are no offline jets, we skip it
@@ -62,15 +63,15 @@ def run_code(seed_ETthresh = 0.):
     '''can use seed_filter on an event by event basis'''
     # max number of seeds based on number of offline jets
     #seed_filter = gTowers.SeedFilter(numSeeds = len(oEvent.jets))
-    print '\tbuilding tEvent'
+    print '\t%d: building tEvent' % seed_ETthresh
     tEvent = gTowers.TowerEvent(event=[data[col][0] for col in gTower_column_names], seed_filter = seed_filter)
-    print '\tdone'
+    print '\t%d: done' % seed_ETthresh
     # build up the first two histograms using just the gTower data
     # note, we have np.histogram(...)[0] since we only need the hist data
 
     tEvent.get_event()
     #paired_jets = match_jets(oJets=oEvent.jets, tJets=tEvent.filter_towers())
-    paired_jets = match_jets(oJets=oEvent.jets, tJets=tEvent.event.jets)
+    paired_jets.append( match_jets(oJets=oEvent.jets, tJets=tEvent.event.jets) )
 
   '''at this point, we've processed all the data and we just need to dump it'''
   filename_ending = 'seed%d_unweighted' % (seed_ETthresh)
@@ -90,4 +91,4 @@ print jobs
 
 import multiprocessing
 p = multiprocessing.Pool(processes=6)
-#p.map(Copier(), jobs)
+p.map(Copier(), jobs)
