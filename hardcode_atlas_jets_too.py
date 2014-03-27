@@ -18,7 +18,7 @@ def match_jets(oJets=[], tJets=[]):
   matched_jets = []
   for oJet in oJets:
     distances = np.array(map(lambda tJet: compute_jetDistance(tJet, oJet), tJets))
-    energies = np.array(map(lambda tJet: tJet.E/np.cosh(tJet.eta), tJets))
+    energies = np.array(map(lambda tJet: tJet.Et, tJets))
     # return jet with highest ET within dR
     if np.where(distances <= dR)[0].size == 0:
       closest_tJet = gTowers.Jet()
