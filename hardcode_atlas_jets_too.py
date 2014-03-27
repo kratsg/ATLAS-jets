@@ -4,14 +4,6 @@ import numpy as np
 import matplotlib.pyplot as pl
 import root_numpy as rnp
 import pickle
-filename = '/Users/kratsg/Desktop/PileupSkim_TTbar_14TeV_MU80.root' 
-directory = 'TTbar_14TeV_MU80'
-tree = 'mytree'
-
-rootfile = ROOT.TFile.Open(filename)
-
-#set total number of events
-total_num_events = int(rootfile.Get('%s/%s' % (directory, tree)).GetEntries())
 
 # define helper functions - also a source of parallelization!
 def compute_jetDistance(jet1, jet2):
@@ -37,9 +29,23 @@ def match_jets(oJets=[], tJets=[]):
     matched_jets.append([oJet,closest_tJet])
   return matched_jets
 
-def run_code(seed_ETthresh = 0.):
+#no 22 or 23
+def run_code(page_num = 0):
+
+  filename = '/Users/kratsg/Desktop/LArStudies/PileupSkim_TTbar_14TeV_MU80_%d.root' % page_num
+  #directory = 'TTbar_14TeV_MU80'
+  tree = 'mytree'
+
+  rootfile = ROOT.TFile.Open(filename)
+
+  #set total number of events
+  total_num_events = int(rootfile.Get('%s' % (tree)).GetEntries())
+
+  # seed_ETthresh = 15
+  seed_ETthresh = 15.
+
   #set seed cuts
-  seed_filter = gTowers.SeedFilter(ETthresh = seed_ETthresh, numSeeds = 1.0e5)
+  seed_filter = gTowers.SeedFilter(ETthresh = seed_ETthresh, numSeeds = 100)
   #column names to pull from the file, must be in this order to sync with the predefined classes in atlas_jets package
   offline_column_names = ['jet_AntiKt10LCTopoTrimmedPtFrac5SmallR30_%s' % col for col in ['E', 'pt', 'm', 'eta', 'phi', 'TrimmedSubjetsPtFrac5SmallR30_nsj', 'Tau1', 'Tau2', 'Tau3', 'SPLIT12', 'SPLIT23', 'SPLIT34']]
   gTower_column_names = ['gTower%s' % col for col in ['E', 'Et', 'NCells', 'EtaMin', 'EtaMax', 'PhiMin', 'PhiMax']]
@@ -50,10 +56,10 @@ def run_code(seed_ETthresh = 0.):
   # main loop that goes over the file
   for event_num in range(total_num_events):
     if event_num % 100 == 0:
-      print "doing event_num=%d for seed_Et: %d" % (event_num, seed_ETthresh)
+      print "doing event_num=%d for page_num: %d" % (event_num, page_num)
     # pull in data row by row
-    data = rnp.root2rec(filename, treename='%s/%s' % (directory,tree), branches=offline_column_names + gTower_column_names, start=(event_num), stop=(event_num+1))
-    print '\t%d: loaded data' % seed_ETthresh
+    data = rnp.root2rec(filename, treename='%s' % (tree), branches=offline_column_names + gTower_column_names, start=(event_num), stop=(event_num+1))
+    print '\t%d: loaded data' % page_num
     oEvent = OfflineJets.Event(event=[data[col][0] for col in offline_column_names])
 
     # if there are no offline jets, we skip it
@@ -63,9 +69,9 @@ def run_code(seed_ETthresh = 0.):
     '''can use seed_filter on an event by event basis'''
     # max number of seeds based on number of offline jets
     #seed_filter = gTowers.SeedFilter(numSeeds = len(oEvent.jets))
-    print '\t%d: building tEvent' % seed_ETthresh
+    print '\t%d: building tEvent' % page_num
     tEvent = gTowers.TowerEvent(event=[data[col][0] for col in gTower_column_names], seed_filter = seed_filter)
-    print '\t%d: done' % seed_ETthresh
+    print '\t%d: done' % page_num
     # build up the first two histograms using just the gTower data
     # note, we have np.histogram(...)[0] since we only need the hist data
 
@@ -74,21 +80,23 @@ def run_code(seed_ETthresh = 0.):
     paired_jets.append( match_jets(oJets=oEvent.jets, tJets=tEvent.event.jets) )
 
   '''at this point, we've processed all the data and we just need to dump it'''
-  filename_ending = 'seed%d_unweighted' % (seed_ETthresh)
-  pickle.dump(paired_jets, file('paired_jets_%s.pkl' % filename_ending, 'w+') )
+  filename_ending = 'seed%d_unweighted_page%d' % (seed_ETthresh, page_num)
+  pickle.dump(paired_jets, file('matched_jets_%s.pkl' % filename_ending, 'w+') )
   return len(paired_jets)
 
 class Copier(object):
   def __init__(self):
     pass
   def __call__(self, args):
-    seed_ETthresh = args
-    run_code(seed_ETthresh)
+    page = args
+    run_code(page)
 
-seed_ETthreshold = [35., 30., 25., 20., 15., 10.]
-jobs = [(c) for c in seed_ETthreshold]
+#pages = [0,1,10,11]
+pages = [12,14,15,16]
+#pages = [0,1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,23]
+jobs = [(c) for c in pages]
 print jobs
 
 import multiprocessing
-p = multiprocessing.Pool(processes=6)
+p = multiprocessing.Pool(processes=4)
 p.map(Copier(), jobs)
