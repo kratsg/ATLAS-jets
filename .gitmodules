@@ -1,0 +1,3 @@
+[submodule "atlas_jets"]
+	path = atlas_jets
+	url = git@github.com:kratsg/atlas_jets
