@@ -1,5 +1,10 @@
 Repo containing code for analyzing jets from ATLAS
 
+Cloning the Repo
+===================
+You will want to run `git clone --recursive git@github.com:kratsg/atlas_studies` so that it initializes the submodule containing the python code for `atlas_jets`. Otherwise, just do a standard `git clone` and then run `git submodule init; git submodule update` afterwards.
+
+
 Current Features
 ====================
 See `test_atlas_jets.py` for actual code that runs. Everything is packaged up.
